@@ -10,7 +10,7 @@ export default function Home() {
     <div>
       <section className="text-center py-12 mb-8 rounded-2xl" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <h1 className="text-4xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
-          openxuhao's Blog
+          SecNest's Blog
         </h1>
         <p className="text-lg mb-6" style={{ color: 'var(--text-secondary)' }}>
           网络安全知识库 · 攻防对抗 · 工具手册

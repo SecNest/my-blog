@@ -32,7 +32,7 @@ export default function Header() {
     <header className="sticky top-0 z-50 backdrop-blur-md" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 85%, transparent)', borderBottom: '1px solid var(--border)' }}>
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="text-xl font-bold" style={{ color: 'var(--accent)' }}>
-          openxuhao's Blog
+          SecNest's Blog
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">
