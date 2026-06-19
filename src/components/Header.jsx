@@ -30,14 +30,15 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md" style={{ backgroundColor: 'color-mix(in srgb, var(--bg-primary) 85%, transparent)', borderBottom: '1px solid var(--border)' }}>
-      <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="text-xl font-bold" style={{ color: 'var(--accent)' }}>
-          My Blog
+          openxuhao's Blog
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">
           <Link to="/" className="hover:opacity-70 transition">首页</Link>
-          <Link to="/tags" className="hover:opacity-70 transition">标签</Link>
+          <Link to="/knowledge" className="hover:opacity-70 transition">知识库</Link>
+          <Link to="/tools" className="hover:opacity-70 transition">工具手册</Link>
           <Link to="/about" className="hover:opacity-70 transition">关于</Link>
         </nav>
 
@@ -86,7 +87,8 @@ export default function Header() {
       {menuOpen && (
         <nav className="md:hidden px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)' }}>
           <Link to="/" onClick={() => setMenuOpen(false)} className="py-2 hover:opacity-70">首页</Link>
-          <Link to="/tags" onClick={() => setMenuOpen(false)} className="py-2 hover:opacity-70">标签</Link>
+          <Link to="/knowledge" onClick={() => setMenuOpen(false)} className="py-2 hover:opacity-70">知识库</Link>
+          <Link to="/tools" onClick={() => setMenuOpen(false)} className="py-2 hover:opacity-70">工具手册</Link>
           <Link to="/about" onClick={() => setMenuOpen(false)} className="py-2 hover:opacity-70">关于</Link>
         </nav>
       )}

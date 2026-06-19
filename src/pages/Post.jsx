@@ -2,8 +2,9 @@ import { useParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Calendar, Tag, ArrowLeft } from 'lucide-react'
-import { getPostBySlug } from '../utils/posts'
+import { getPostBySlug, getCategoryById } from '../utils/posts'
 import Comments from '../components/Comments'
+import TOC from '../components/TOC'
 
 export default function Post() {
   const { slug } = useParams()
@@ -21,40 +22,56 @@ export default function Post() {
     )
   }
 
-  return (
-    <article>
-      <Link to="/" className="inline-flex items-center gap-1 mb-6 hover:opacity-70 transition" style={{ color: 'var(--accent)' }}>
-        <ArrowLeft size={16} />
-        返回
-      </Link>
+  const catInfo = getCategoryById(post.subcategory || post.category)
 
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
-          {post.title}
-        </h1>
-        <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <span className="flex items-center gap-1">
-            <Calendar size={14} />
-            {post.date}
-          </span>
-          <span className="flex items-center gap-1">
-            <Tag size={14} />
+  return (
+    <div className="flex gap-8">
+      <article className="flex-1 min-w-0">
+        <Link to={catInfo?.parent ? `/knowledge/${post.subcategory}` : '/'} className="inline-flex items-center gap-1 mb-6 hover:opacity-70 transition" style={{ color: 'var(--accent)' }}>
+          <ArrowLeft size={16} />
+          返回
+        </Link>
+
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+            {post.title}
+          </h1>
+          <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span className="flex items-center gap-1">
+              <Calendar size={14} />
+              {post.date}
+            </span>
+            {catInfo && (
+              <span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                {catInfo.parent?.name || catInfo.name}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-3">
             {post.tags.map(tag => (
-              <Link key={tag} to={`/tags/${tag}`} className="hover:opacity-80 transition" style={{ color: 'var(--accent)' }}>
+              <Link
+                key={tag}
+                to={`/tags/${tag}`}
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-xs hover:opacity-80 transition"
+                style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+              >
+                <Tag size={10} />
                 {tag}
               </Link>
-            )).reduce((prev, curr) => [prev, ', ', curr])}
-          </span>
+            ))}
+          </div>
+        </header>
+
+        <div className="prose">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {post.content}
+          </ReactMarkdown>
         </div>
-      </header>
 
-      <div className="prose">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {post.content}
-        </ReactMarkdown>
-      </div>
+        <Comments slug={slug} />
+      </article>
 
-      <Comments slug={slug} />
-    </article>
+      <TOC content={post.content} />
+    </div>
   )
 }
